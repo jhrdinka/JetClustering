@@ -12,7 +12,7 @@ make
 ```
 Run analysis:
 ```
-./analyze [input_file] [output_file] []number_of_events] [CMS/FCC]
+./analyze [input_file] [output_file] [number_of_events] [CMS/FCC]
 ```
 e.g:
 ```
