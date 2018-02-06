@@ -8,7 +8,7 @@ Install fastjet (to be done only once):
 ```
 Compile analysis code:
 ```
-make
+make -j 4
 ```
 Run analysis:
 ```
