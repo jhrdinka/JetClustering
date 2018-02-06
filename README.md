@@ -39,15 +39,15 @@ Jobs can be collected via:
 
 
 ```
-python batch/submitJetClustering.py -o [output_dir] --collect
+python submitJetClustering.py -o [output_dir] --collect
 ```
 
 e.g:
 ```
-python batch/submitJetClustering.py -i /eos/experiment/fcc/hh/simulation/samples/tracker_calobarrel/diW/500GeV/NTUP -n 1 -o output/test --njobs 10 -q 1nh
+python submitJetClustering.py -i /eos/experiment/fcc/hh/simulation/samples/tracker_calobarrel/diW/500GeV/NTUP -n 1 -o output/test --njobs 10 -q 1nh
 ```
 and:
 
 ``` 
-python batch/submitJetClustering.py -o output/test --collect
+python submitJetClustering.py -o output/test --collect
 ```
