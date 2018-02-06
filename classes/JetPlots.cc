@@ -3,17 +3,17 @@
 JetPlots::JetPlots(const TString name, const vector<float> ptvals){
    
    _name    = name;   
-   _pt      = TH1F(name+"_pt",name+"_pt",100,0.,1000.);
-   _eta     = TH1F(name+"_eta",name+"_eta",100,-5.0,5.0);
-   _phi     = TH1F(name+"_phi",name+"_phi",100,-TMath::Pi(),-TMath::Pi());
-   _mass    = TH1F(name+"_mass",name+"_mass",100,0.,500.);
-   _energy  = TH1F(name+"_energy",name+"_energy",100,0.,10000.);
-   _tau1    = TH1F(name+"_tau1",name+"_tau1",100,0.,1.0);
-   _tau2    = TH1F(name+"_tau2",name+"_tau2",100,0.,1.0);
-   _tau3    = TH1F(name+"_tau3",name+"_tau3",100,0.,1.0);
-   _tau21   = TH1F(name+"_tau21",name+"_tau21",100,0.,1.0);
-   _tau32   = TH1F(name+"_tau32",name+"_tau32",100,0.,1.0);
-   _massSD  = TH1F(name+"_massSD",name+"_massSD",100,0.,500.);
+   _pt      = TH1F(name+"_pt",name+"_pt",500,0.,1000.);
+   _eta     = TH1F(name+"_eta",name+"_eta",500,-5.0,5.0);
+   _phi     = TH1F(name+"_phi",name+"_phi",500,-TMath::Pi(),-TMath::Pi());
+   _mass    = TH1F(name+"_mass",name+"_mass",500,0.,500.);
+   _energy  = TH1F(name+"_energy",name+"_energy",500,0.,10000.);
+   _tau1    = TH1F(name+"_tau1",name+"_tau1",500,0.,1.0);
+   _tau2    = TH1F(name+"_tau2",name+"_tau2",500,0.,1.0);
+   _tau3    = TH1F(name+"_tau3",name+"_tau3",500,0.,1.0);
+   _tau21   = TH1F(name+"_tau21",name+"_tau21",500,0.,1.0);
+   _tau32   = TH1F(name+"_tau32",name+"_tau32",500,0.,1.0);
+   _massSD  = TH1F(name+"_massSD",name+"_massSD",500,0.,500.);
 
 
   //create dictionary for resolution plots
@@ -23,7 +23,7 @@ JetPlots::JetPlots(const TString name, const vector<float> ptvals){
       TString ptbin_str;
       ptbin_str.Form("_%.0f_%.0f",ptmin,ptmax);
       ptbin_str = name + ptbin_str;
-      _ptbins.push_back(make_pair(make_pair(ptmin, ptmax), TH1F(ptbin_str,ptbin_str,100,0.,4.0)));
+      _ptbins.push_back(make_pair(make_pair(ptmin, ptmax), TH1F(ptbin_str,ptbin_str,500,0.,4.0)));
   }
 
 }
@@ -48,12 +48,10 @@ void JetPlots::fill(JetCollection& coll){
        _massSD  .Fill(jet.massSD());
 
        // fill resolution plots
-       for(vector<pair<pair<float,float>, TH1F>>::iterator it = _ptbins.begin(); it != _ptbins.end()-1; it++) {
+       for(vector<pair<pair<float,float>, TH1F>>::iterator it = _ptbins.begin(); it != _ptbins.end(); it++) {
            float ptmin=(it->first).first;
            float ptmax=(it->first).second;
            TH1F histo = it->second;
-           cout<<ptmin<<","<<ptmax<<endl;
-           
            Jet *genjet = jet.ref();
            if(genjet){
                if(genjet->pt() > ptmin && genjet->pt() < ptmax){
@@ -88,7 +86,7 @@ void JetPlots::write(){
    gDirectory->mkdir("reso");
    gDirectory->cd("reso");
    
-   for(vector<pair<pair<float,float>, TH1F>>::const_iterator it = _ptbins.begin(); it != _ptbins.end()-1; it++) {
+   for(vector<pair<pair<float,float>, TH1F>>::const_iterator it = _ptbins.begin(); it != _ptbins.end(); it++) {
        (it->second).Write();
    }
 

@@ -39,8 +39,10 @@ def main():
     if collect:
        print 'Collecting jobs for process: '+output_dir
        hadd_dir = output_dir +'/out/'
-       outfile = hadd_dir + output_dir + '.root'
-       hadd_files = hadd_dir + output_dir + '_*.root'
+       basename = output_dir
+       basename = os.path.basename(basename)
+       outfile = hadd_dir + basename + '.root'
+       hadd_files = hadd_dir + basename + '_*.root'
        cmd ='hadd -f '+ outfile + ' ' + hadd_files
        os.system(cmd)
        cmd = 'rm -rf '+hadd_files+' '+output_dir+'/std'

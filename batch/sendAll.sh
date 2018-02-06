@@ -14,3 +14,5 @@ python submitJetClustering.py -o output/FccDiJet200GeV --collect
 python submitJetClustering.py -o output/FccDiJet500GeV --collect
 python submitJetClustering.py -o output/FccDiJet1000GeV --collect
 python submitJetClustering.py -o output/FccDiJet2000GeV --collect
+
+hadd -f output/merged_dijet.root output/FccDiJet*GeV/out/FccDiJet*GeV.root

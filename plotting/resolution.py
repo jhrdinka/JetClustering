@@ -1,4 +1,4 @@
-import ROOT, sys
+import ROOT, sys, os
 from ROOT import TFile, TH1F, TGraphErrors, TMultiGraph, TLegend, TF1,gROOT
 
 c = ROOT.TCanvas("", "", 600, 600) 
@@ -24,13 +24,6 @@ styles.append(9)
 styles.append(10)
 styles.append(20)
 
-
-
-
-'''filename = sys.argv[1]
-fs = sys.argv[2]
-step = sys.argv[3]
-var  = sys.argv[4]'''
 #____________________________________________________
 def myStyle():
     ROOT.gStyle.SetFrameBorderMode(0)
@@ -130,7 +123,6 @@ def printResoHisto(histo,f, pt, eta, r, pu):
    Tleft.SetNDC(ROOT.kTRUE) 
    Tleft.SetTextSize(0.044) 
    Tleft.SetTextFont(132) '''
-    
 
    ROOT.gStyle.SetOptFit()
    ps = histo.GetListOfFunctions().FindObject("stats")
@@ -143,9 +135,12 @@ def printResoHisto(histo,f, pt, eta, r, pu):
 
    histo.GetXaxis().SetTitle('p_{T}^{reco} / p_{T}^{gen}')
 
+   basename = os.path.basename(histo.GetName())
+   if not os.path.exists('plots'):
+       os.makedirs('plots')
+       plotname = 'plots/'+basename+'.png'
 
-   plotname = 'plots/'+histo.GetName()+'.png'
-   c.Print(plotname)
+       c.Print(plotname)
 
 #_____________________________________________________________________________________________________
 def drawMultiGraph(mg, name, lt, rt, pdir, xmin, xmax, ymin, ymax, logx, logy, bl, f):
@@ -245,154 +240,147 @@ def drawMultiGraph(mg, name, lt, rt, pdir, xmin, xmax, ymin, ymax, logx, logy, b
 
     canvas.Print('{}/{}.png'.format(pdir, name), 'png')
 
-
 #_______________________________________________________________________
 
-'''filePrefix = 'GunQuarkPt'
-pu = 0
-algo = 'ak4'''
+fileName = sys.argv[1]
 
-filePrefix = sys.argv[1]
-pu = sys.argv[2]
-
-ptbins = [20,50, 100,200,500,1000,2000]
-#etabins = [(0.0, 0.5),(0.5, 1.0), (1.0, 1.5),(0,1.5)]
-etabins = [(0.0,1.3)]
-rbins = [0.4]
+#ptbins = [10., 20., 30.,50., 75., 100., 150., 200., 300., 500., 750., 1000., 1500., 2000., 5000.]
+ptbins = [10., 20., 30.,50., 75., 100., 150., 200., 300., 500., 750., 1000., 1500.]
 
 mus = dict()
 sigs = dict()
 
-for r in rbins:
+algo = 'ak4'
 
-    algo = 'ak{:.0f}'.format(r*10.)
+r = 0.4
+eta = (0.0,1.3)
+pu = 0
 
-    # retrieve histograms from ROOT files
-    for pt in ptbins:
-       name = '{}{}GeV'.format(filePrefix,pt)
-       hfile = ROOT.TFile('../{}/out/{}.root'.format(name,name))
-       #hfile = ROOT.TFile('../FCCbk/{}/out/{}.root'.format(name,name))
+hfile = ROOT.TFile(fileName)
 
-       for eta in etabins:
+# retrieve histograms from ROOT files
+i = 0
+for pt in ptbins:
+    
+    if i == len(ptbins)-1:
+       break
+    
+    histname = 'reco/reso/reco_{:.0f}_{:.0f}'.format(ptbins[i],ptbins[i+1])
 
-	  key = (pt,eta,r)
+    hist = hfile.Get(histname)
+    histo = hist.Clone()
+    histo.SetName(histname)
 
-	  print key
-	  histname = 'resp_{}_{}_{}'.format(algo,eta[0],eta[1])
-	  print histname
-	  if int(pu) > 0:
-              histname = 'resp_{}_{}_{}_nopu'.format(algo,eta[0],eta[1])
+    fname = 'f{}'.format(histname)
 
-	  hist = hfile.Get(histname)
+    if histo.Integral() > 0:
+        histo.Scale(1/histo.Integral())
 
-	  histo = hist.Clone()
-	  histname = '{}_{}'.format(histname,pt)
-	  histname = '{}_resp_{}_{}_{}_pt{}_{}pu'.format(filePrefix,algo,eta[0],eta[1],pt,pu)
+    x0 = histo.GetXaxis().GetBinCenter(histo.GetMaximumBin())      
+    d = histo.GetRMS()
 
-	  histo.SetName(histname)
-	  fname = 'f{}'.format(histname)
+    # now perform gaussian fit in [x_max_sigm, x_max_sigp]
+    f = ROOT.TF1(fname, 'gaus',0.0, 2.0)
 
-          histo.Scale(1/histo.Integral())
+    s = 1.0
+    histo.Fit(fname, 'Q', '', x0 - s*d, x0 + s*d)
+    printResoHisto(histo, f, pt, eta, r, pu)
 
-	  x0 = histo.GetXaxis().GetBinCenter(histo.GetMaximumBin())      
-	  d = histo.GetRMS()
+    key = pt
 
-	  # now perform gaussian fit in [x_max_sigm, x_max_sigp]
-	  f = ROOT.TF1(fname, 'gaus',0.0, 2.0)
+    mus[key]  = (f.GetParameter(1), f.GetParError(1))
+    sigs[key] = (f.GetParameter(2)*100, f.GetParError(2)*100)
 
-	  s = 1.0
-	  histo.Fit(fname, 'Q', '', x0 - s*d, x0 + s*d)
-	  printResoHisto(histo, f, pt, eta, r, pu)
+    print '---------------------------------------------'
+    print 'fitting results for {} < pt < {}'.format(ptbins[i],ptbins[i+1])
+    print '---------------------------------------------'
+    print ''
 
-	  mus[key]  = (f.GetParameter(1), f.GetParError(1))
-	  sigs[key] = (f.GetParameter(2)*100, f.GetParError(2)*100)
+    mus[key]  = (f.GetParameter(1), f.GetParError(1))
+    sigs[key] = (f.GetParameter(2)*100 / f.GetParameter(1), f.GetParError(2)*100 / f.GetParameter(1))
 
-	  '''print key
+    print 'mu  = ', '{:.2f} +/- {:.2f}'.format(mus[key][0], mus[key][1])
+    print 'res = ', '{:.2f} +/- {:.2f}'.format(sigs[key][0], sigs[key][1])
+    print ''
+    print ''
+    i += 1
 
-	  print '        ', mus[key][0], mus[key][1]
-	  print '        ', sigs[key][0], sigs[key][1]'''
+# now do multigraphs
 
-	  mus[key]  = (f.GetParameter(1), f.GetParError(1))
-	  sigs[key] = (f.GetParameter(2)*100 / f.GetParameter(1), f.GetParError(2)*100 / f.GetParameter(1))
+#lt = 'QCD (uds) jets, #sqrt{{s}} = 100 TeV, {} PU'.format(pu)
+rt = 'FCC-hh simulation'
+lt = []
+lt.append('#sqrt{s} = 100 TeV')
+lt.append('QCD (uds) jets')
+lt.append("anti-k_{{T}}, R = {}".format(r))
+lt.append("0 < |#eta| < 1.3".format(r))
 
-	  '''print '        ', mus[key][0], mus[key][1]
-	  print '        ', sigs[key][0], sigs[key][1]'''
+#_____________________  VS PT__________________________
+
+mg_reso_pt = ROOT.TMultiGraph()
+mg_reso_pt.SetTitle(";p_{T} [GeV]; resolution (%)")
+
+mg_resp_pt = ROOT.TMultiGraph()
+mg_resp_pt.SetTitle(";p_{T} [GeV]; response")
 
 
-    # now do multigraphs
+reso_pt = ROOT.TGraphErrors()
+reso_pt.SetLineColor(colors[0])
+reso_pt.SetLineStyle(styles[0])
+reso_pt.SetFillColor(0)
+reso_pt.SetLineWidth(4)
+reso_pt.SetMarkerColor(colors[0])
 
-    #lt = 'QCD (uds) jets, #sqrt{{s}} = 100 TeV, {} PU'.format(pu)
-    rt = 'FCC-hh simulation'
-    lt = []
-    lt.append('#sqrt{s} = 100 TeV')
-    lt.append('QCD (uds) jets')
-    lt.append("anti-k_{{T}}, R = {}".format(r))
-    lt.append("0 < |#eta| < 1.3".format(r))
+resp_pt = ROOT.TGraphErrors()
+resp_pt.SetLineColor(colors[1])
+resp_pt.SetLineStyle(styles[1])
+resp_pt.SetFillColor(0)
+resp_pt.SetLineWidth(4)
+resp_pt.SetMarkerColor(colors[1])
 
-    #_____________________  VS PT__________________________
+i = 0
+for pt in ptbins:
+   key = pt
+   if i == len(ptbins)-1:
+      break
 
-    mg_reso_pt = ROOT.TMultiGraph()
-    mg_reso_pt.SetTitle(";p_{T} [GeV]; resolution (%)")
+   title = '{} < |#eta| < {} '.format(eta[0], eta[1])
+   reso_pt.SetTitle(title)
+   reso_pt.SetPoint(i,pt,sigs[key][0])
+   reso_pt.SetPointError(i,0.,sigs[key][1])
 
-    mg_resp_pt = ROOT.TMultiGraph()
-    mg_resp_pt.SetTitle(";p_{T} [GeV]; response")
+   resp_pt.SetTitle(title)
+   resp_pt.SetPoint(i,pt,mus[key][0])
+   resp_pt.SetPointError(i,0.,mus[key][1])
 
-    i = 0
-    for eta in etabins:
-       reso_pt = ROOT.TGraphErrors()
-       reso_pt.SetLineColor(colors[i])
-       reso_pt.SetLineStyle(styles[i])
-       reso_pt.SetFillColor(0)
-       reso_pt.SetLineWidth(4)
-       reso_pt.SetMarkerColor(colors[i])
+   i += 1
 
-       resp_pt = ROOT.TGraphErrors()
-       resp_pt.SetLineColor(colors[i])
-       resp_pt.SetLineStyle(styles[i])
-       resp_pt.SetFillColor(0)
-       resp_pt.SetLineWidth(4)
-       resp_pt.SetMarkerColor(colors[i])
+# fit pt resolution
+#freso = ROOT.TF1('reso', 'sqrt([0]^2/x^2 + [1]^2/x + [2]^2)',0.0, 10000.0)
+freso = ROOT.TF1('reso', 'sqrt([1]^2/x + [2]^2)',0.0, 10000.0)
+#freso.SetParLimits(0,0,100)
+freso.SetParLimits(0,0,200)
+freso.SetParLimits(1,0,5)
+reso_pt.Fit(freso, '', '', 20.0, 5000.0)
+#freso.SetLineWidth(3)
+#freso.SetLineColor(ROOT.kBlack)
+#freso.Draw('same')
+#f.Draw('same')
 
-       i += 1
+mg_reso_pt.Add(reso_pt)
+mg_resp_pt.Add(resp_pt)
 
-       point = 0
-       for pt in ptbins:
-	  key = (pt,eta,r)
+if algo == 'ak4': r = 0.4
+if algo == 'ak2': r = 0.2
+if algo == 'ak1': r = 0.1
 
-	  title = '{} < |#eta| < {} '.format(eta[0], eta[1])
-	  reso_pt.SetTitle(title)
-	  reso_pt.SetPoint(point,pt,sigs[key][0])
-	  reso_pt.SetPointError(point,0.,sigs[key][1])
+basename = os.path.basename(fileName)
+basename = os.path.splitext(basename)[0]
 
-	  resp_pt.SetTitle(title)
-	  resp_pt.SetPoint(point,pt,mus[key][0])
-	  resp_pt.SetPointError(point,0.,mus[key][1])
+name_reso = '{}_reso_pt_{}_{}pu'.format(basename,algo,pu)
+name_resp = '{}_resp_pt_{}_{}pu'.format(basename,algo,pu)
 
-	  point += 1
-
-       # fit pt resolution
-       #freso = ROOT.TF1('reso', 'sqrt([0]^2/x^2 + [1]^2/x + [2]^2)',0.0, 10000.0)
-       freso = ROOT.TF1('reso', 'sqrt([1]^2/x + [2]^2)',0.0, 10000.0)
-       #freso.SetParLimits(0,0,100)
-       freso.SetParLimits(0,0,200)
-       freso.SetParLimits(1,0,5)
-       reso_pt.Fit(freso, '', '', 20.0, 5000.0)
-       #freso.SetLineWidth(3)
-       #freso.SetLineColor(ROOT.kBlack)
-       #freso.Draw('same')
-       #f.Draw('same')
-
-       mg_reso_pt.Add(reso_pt)
-       mg_resp_pt.Add(resp_pt)
-
-    if algo == 'ak4': r = 0.4
-    if algo == 'ak2': r = 0.2
-    if algo == 'ak1': r = 0.1
-
-    name_reso = '{}_reso_pt_{}_{}pu'.format(filePrefix,algo,pu)
-    name_resp = '{}_resp_pt_{}_{}pu'.format(filePrefix,algo,pu)
-
-    drawMultiGraph(mg_reso_pt, name_reso, lt, rt, 'plots', 10, 5000., 0., 40., True, False, False, freso)   
-    freso = None
-    drawMultiGraph(mg_resp_pt, name_resp, lt, rt, 'plots', 10., 5000., 0.5, 1.2, True, False, True, freso)   
+drawMultiGraph(mg_reso_pt, name_reso, lt, rt, 'plots', 10, 5000., 0., 40., True, False, False, freso)   
+freso = None
+drawMultiGraph(mg_resp_pt, name_resp, lt, rt, 'plots', 10., 5000., 0.5, 1.2, True, False, True, freso)   
 
