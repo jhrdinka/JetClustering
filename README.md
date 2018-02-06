@@ -12,8 +12,9 @@ Install fastjet (to be done only once):
 []() Run instructions
 ----------------------
 
-Compile analysis code:
+Compile analysis code (can be found and modified in ```src/analyze.cc```):
 ```
+source init.sh
 make -j 4
 ```
 Run analysis:
@@ -22,7 +23,7 @@ Run analysis:
 ```
 e.g:
 ```
-./analyze /eos/experiment/fcc/hh/simulation/samples/tracker_calobarrel/ditop/500GeV/NTUP/output_helsens_20171011151211690.root test.root 10 FCC```
+./analyze /eos/experiment/fcc/hh/simulation/samples/tracker_calobarrel/ditop/500GeV/NTUP/output_helsens_20171011151211690.root test.root 10 FCC
 ```
 
 
