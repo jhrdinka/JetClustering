@@ -5,12 +5,19 @@
 #include "JetCollection.hh"
 #include <vector>
 #include <TH1F.h>
+#include <TString.h>
 #include <TLorentzVector.h>
 #include <TMath.h>
+#include <TDirectory.h>
+#include <iostream>
+
+using namespace std;
 
 class JetPlots{
 
     private:
+
+        TString _name;
 
         TH1F _pt;
         TH1F _eta;
@@ -24,10 +31,12 @@ class JetPlots{
         TH1F _tau32;
         TH1F _massSD;
 
+        vector<pair<pair<float,float>, TH1F>> _ptbins;
+
     public:
         
         // constructors
-        JetPlots(const TString);
+        JetPlots(const TString, const vector<float> ptvals);
         void fill(JetCollection&);
         void write();
 

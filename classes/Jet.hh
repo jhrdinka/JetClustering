@@ -14,7 +14,7 @@ class Jet{
         float _tau32;
         float _sdmass;
 
-        Jet* _ref;
+        Jet* _ref = NULL;
 
     public:
         

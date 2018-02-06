@@ -12,9 +12,14 @@ Install fastjet (to be done only once):
 []() Run instructions
 ----------------------
 
-Compile analysis code (can be found and modified in ```src/analyze.cc```):
+
+First load the required environment on lxplus:
 ```
 source init.sh
+```
+Compile analysis code (can be found and modified in ```src/analyze.cc```):
+
+```
 make -j 4
 ```
 Run analysis:

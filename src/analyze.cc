@@ -113,8 +113,11 @@ int main(int argc, char* argv[]){
   t->SetBranchAddress("gen_pdgid", &genpart_pdgid);
 
   // declare histograms
-  JetPlots gen_plots  = JetPlots("gen");
-  JetPlots reco_plots = JetPlots("reco");
+  vector<float> ptvals;
+  ptvals = {10., 20., 30.,50., 75., 100., 150., 200., 300., 500., 750., 1000., 1500., 2000., 5000.};
+  
+  JetPlots gen_plots  = JetPlots("gen", ptvals);
+  JetPlots reco_plots = JetPlots("reco", ptvals);
 
   // calibration 
   RecHitCalibration recHitCalibration;
@@ -195,9 +198,9 @@ int main(int argc, char* argv[]){
     JetCollection recojets;
     
     // produce jet collections (anti-kT R = 0.4)
-    produceJets(clean_genparts, genjets, 0.4, 20.0);
+    produceJets(clean_genparts, genjets, 0.4, 30.0);
+    produceJets(clean_rechits, recojets, 0.4, 30.0);
     //produceJets(clean_rechits, recojets, 0.4, 20.0, true);
-    produceJets(clean_rechits, recojets, 0.4, 20.0, true);
 
     // match reco to gen (need this in order to make resolution plots)
     matchJets(genjets, recojets, 0.4);
@@ -382,6 +385,7 @@ void convertJets(Sequence seq, vector<PseudoJet> pseudojets, const float& r, dou
 
        if (p4.Pt() < ptmin) continue;
 
+       /*
        // N-subjettiness
        double beta = 1.0;
 
@@ -406,6 +410,7 @@ void convertJets(Sequence seq, vector<PseudoJet> pseudojets, const float& r, dou
        jet.setSDmass(p4.M());
 
        // store jet in collection
+       */
        jets.Add(new Jet(jet));
    }   
 }
