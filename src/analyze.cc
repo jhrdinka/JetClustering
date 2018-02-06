@@ -198,8 +198,8 @@ int main(int argc, char* argv[]){
     JetCollection recojets;
     
     // produce jet collections (anti-kT R = 0.4)
-    produceJets(clean_genparts, genjets, 0.4, 30.0);
-    produceJets(clean_rechits, recojets, 0.4, 30.0);
+    produceJets(clean_genparts, genjets, 0.4, 2.5);
+    produceJets(clean_rechits, recojets, 0.4, 2.5);
     //produceJets(clean_rechits, recojets, 0.4, 20.0, true);
 
     // match reco to gen (need this in order to make resolution plots)
