@@ -81,7 +81,7 @@ def main():
        cmd = 'bsub -o '+output_dir+'/std/'+basename +'.out -e '+output_dir+'/std/'+basename +'.err -q '+queue
        cmd +=' -J '+basename+' "submitJets.sh '+currentDir+' '+inputFile+' '+outputFile+' '+str(max_events)+' '+runtype+'"'
        
-       print cmd
+       #print cmd
        # submitting jobs
        os.system(cmd)
 
