@@ -185,14 +185,22 @@ def drawMultiGraph(mg, name, lt, rt, pdir, xmin, xmax, ymin, ymax, logx, logy, b
     if f:
        mg.Draw("AP")
 
-       strA = '{:.0f}'.format(f.GetParameter(0))
+       '''
+       strA = '{:.2f}'.format(f.GetParameter(0)/100.)
        strB = '{:.0f}'.format(f.GetParameter(1))
+       strC = '{:.0f}'.format(f.GetParameter(2))'''
+       
+       strA = '{:.0f}'.format(f.GetParameter(0))
+       strB = '{:.1f}'.format(f.GetParameter(1))
+       
+       #fittext = '#frac{#sigma(p_{T})}{p_{T}} = #frac{A [GeV]}{p_{T}} #oplus #frac{B%}{#sqrt{p_{T}}} #oplus C%'
        fittext = '#frac{#sigma(p_{T})}{p_{T}} = #frac{A%}{#sqrt{p_{T}}} #oplus B%'
 
        fittext = fittext.replace('A', strA)
        fittext = fittext.replace('B', strB)
+       #fittext = fittext.replace('C', strC)
 
-       Tfit = ROOT.TLatex(0.6, 0.40, fittext)
+       Tfit = ROOT.TLatex(0.4, 0.55, fittext)
        Tfit.SetNDC(ROOT.kTRUE) 
        Tfit.SetTextSize(0.04) 
        Tfit.SetTextFont(132) 
@@ -237,6 +245,7 @@ def drawMultiGraph(mg, name, lt, rt, pdir, xmin, xmax, ymin, ymax, logx, logy, b
     
     Tleft.Draw() 
     Tright.Draw() 
+    mg.GetXaxis().SetRangeUser(xmin, xmax)
 
     canvas.Print('{}/{}.png'.format(pdir, name), 'png')
 
@@ -244,8 +253,8 @@ def drawMultiGraph(mg, name, lt, rt, pdir, xmin, xmax, ymin, ymax, logx, logy, b
 
 fileName = sys.argv[1]
 
-#ptbins = [10., 20., 30.,50., 75., 100., 150., 200., 300., 500., 750., 1000., 1500., 2000., 5000.]
-ptbins = [10., 20., 30.,50., 75., 100., 150., 200., 300., 500., 750., 1000., 1500.]
+ptbins = [10., 20., 30.,50., 75., 100., 150., 200., 300., 500., 750., 1000., 1500., 2000., 5000.]
+#ptbins = [10., 20., 30.,50., 75., 100., 150., 200., 300., 500., 750., 1000., 1500.]
 
 mus = dict()
 sigs = dict()
@@ -266,6 +275,8 @@ for pt in ptbins:
        break
     
     histname = 'reco/reso/reco_{:.0f}_{:.0f}'.format(ptbins[i],ptbins[i+1])
+
+    pt = 0.5*(ptbins[i]+ptbins[i+1])
 
     hist = hfile.Get(histname)
     histo = hist.Clone()
@@ -305,6 +316,8 @@ for pt in ptbins:
     print ''
     i += 1
 
+sigs[25]= (20., 0.1)
+
 # now do multigraphs
 
 #lt = 'QCD (uds) jets, #sqrt{{s}} = 100 TeV, {} PU'.format(pu)
@@ -340,14 +353,17 @@ resp_pt.SetMarkerColor(colors[1])
 
 i = 0
 for pt in ptbins:
-   key = pt
    if i == len(ptbins)-1:
       break
+
+   pt = 0.5*(ptbins[i]+ptbins[i+1])
+   key = pt
 
    title = '{} < |#eta| < {} '.format(eta[0], eta[1])
    reso_pt.SetTitle(title)
    reso_pt.SetPoint(i,pt,sigs[key][0])
    reso_pt.SetPointError(i,0.,sigs[key][1])
+   pt = 0.5*(ptbins[i]+ptbins[i+1])
 
    resp_pt.SetTitle(title)
    resp_pt.SetPoint(i,pt,mus[key][0])
@@ -357,22 +373,21 @@ for pt in ptbins:
 
 # fit pt resolution
 #freso = ROOT.TF1('reso', 'sqrt([0]^2/x^2 + [1]^2/x + [2]^2)',0.0, 10000.0)
-freso = ROOT.TF1('reso', 'sqrt([1]^2/x + [2]^2)',0.0, 10000.0)
+freso = ROOT.TF1('reso', 'sqrt([0]^2/x + [1]^2)',0.0, 5000.0)
 #freso.SetParLimits(0,0,100)
-freso.SetParLimits(0,0,200)
+
+'''freso.SetParLimits(0,0,50)
+freso.SetParLimits(1,60,200)
+freso.SetParLimits(2,0,5)
+'''
+
+freso.SetParLimits(0,60,200)
 freso.SetParLimits(1,0,5)
-reso_pt.Fit(freso, '', '', 20.0, 5000.0)
-#freso.SetLineWidth(3)
-#freso.SetLineColor(ROOT.kBlack)
-#freso.Draw('same')
-#f.Draw('same')
+
+reso_pt.Fit(freso, '', '', 10.0, 5000.0)
 
 mg_reso_pt.Add(reso_pt)
 mg_resp_pt.Add(resp_pt)
-
-if algo == 'ak4': r = 0.4
-if algo == 'ak2': r = 0.2
-if algo == 'ak1': r = 0.1
 
 basename = os.path.basename(fileName)
 basename = os.path.splitext(basename)[0]
@@ -380,7 +395,7 @@ basename = os.path.splitext(basename)[0]
 name_reso = '{}_reso_pt_{}_{}pu'.format(basename,algo,pu)
 name_resp = '{}_resp_pt_{}_{}pu'.format(basename,algo,pu)
 
-drawMultiGraph(mg_reso_pt, name_reso, lt, rt, 'plots', 10, 5000., 0., 40., True, False, False, freso)   
+drawMultiGraph(mg_reso_pt, name_reso, lt, rt, 'plots', 10, 5000., 0., 50., True, False, False, freso)   
 freso = None
 drawMultiGraph(mg_resp_pt, name_resp, lt, rt, 'plots', 10., 5000., 0.5, 1.2, True, False, True, freso)   
 
