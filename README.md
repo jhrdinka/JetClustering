@@ -16,5 +16,5 @@ Run analysis:
 ```
 e.g:
 ```
-./analyze /eos/cms/store/cmst3/group/hgcal/CMG_studies/Production/RunLHE_selvaggi_TTbarGunPt500_0PU_20171014/NTUP/RunLHE_x100_NTUP_20.root test.root 20
+./analyze /eos/experiment/fcc/hh/simulation/samples/tracker_calobarrel/ditop/500GeV/NTUP/output_helsens_20171011151211690.root test.root 10 FCC```
 ```
