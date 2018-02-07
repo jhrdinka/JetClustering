@@ -208,7 +208,7 @@ int main(int argc, char* argv[]){
     JetCollection recojets;
     
     // produce jet collections (anti-kT R = 0.4)
-    bool doSubstructure  = true;
+    bool doSubstructure  = false;
     bool doPuSubtraction = false;
     
     selection cuts;
