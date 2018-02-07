@@ -212,7 +212,7 @@ int main(int argc, char* argv[]){
     bool doPuSubtraction = false;
     
     selection cuts;
-    cuts.ptmin  = 10;
+    cuts.ptmin  = 2.5;
     cuts.ptmax  = 5000.;
     cuts.absetamin = 0.0;
     cuts.absetamax = 1.3;
