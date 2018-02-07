@@ -45,12 +45,22 @@ using namespace std;
 using namespace fastjet;
 using namespace fastjet::contrib;
 
-template <class Collection>
 
-void produceJets(Collection& input_particles, JetCollection & jets, const float& r, const float ptmin, const bool doPuSubtraction = false);
+//----------------------------------------------------------------------
+struct selection {
+   double ptmin;
+   double ptmax;
+   double absetamin;
+   double absetamax;
+};
+
+//----------------------------------------------------------------------
+
+template <class Collection>
+void produceJets(Collection& input_particles, JetCollection & jets, const float& r, const selection cuts, const bool doPuSubtraction = false, const bool doSubstructure = false);
 
 template <class Sequence>
-void convertJets(Sequence seq, vector<PseudoJet> pseudojets, const float& r, double ptmin, JetCollection& jets);
+void convertJets(Sequence seq, vector<PseudoJet> pseudojets, const float& r, JetCollection& jets, const bool doSubstructure = false);
 void matchJets(JetCollection& genjets, JetCollection& recojets, float dr);
 void printJets(JetCollection & jets);
 void computePuOffset(RecHitCollection& rechits);
@@ -134,7 +144,7 @@ int main(int argc, char* argv[]){
   for (Long64_t i=0;i<nrun;i++) {
     t->GetEntry(i);
 
-    cout<<"processing event: "<<i<<endl;
+    cout<<" ---- processing event : "<<i<<endl;
 
     // ---  prepare genparts
     GenParticleCollection genparts;
@@ -198,9 +208,17 @@ int main(int argc, char* argv[]){
     JetCollection recojets;
     
     // produce jet collections (anti-kT R = 0.4)
-    produceJets(clean_genparts, genjets, 0.4, 2.5);
-    produceJets(clean_rechits, recojets, 0.4, 2.5);
-    //produceJets(clean_rechits, recojets, 0.4, 20.0, true);
+    bool doSubstructure  = true;
+    bool doPuSubtraction = false;
+    
+    selection cuts;
+    cuts.ptmin  = 10;
+    cuts.ptmax  = 5000.;
+    cuts.absetamin = 0.0;
+    cuts.absetamax = 1.3;
+    
+    produceJets(clean_genparts, genjets, 0.4, cuts, false, doSubstructure);
+    produceJets(clean_rechits, recojets, 0.4, cuts, doPuSubtraction, doSubstructure);
 
     // match reco to gen (need this in order to make resolution plots)
     matchJets(genjets, recojets, 0.4);
@@ -210,7 +228,6 @@ int main(int argc, char* argv[]){
         printJets(genjets);
         cout<<" ------  reco jets ------ "<<endl;
         printJets(recojets);
-
     }
 
     // fill plots
@@ -283,7 +300,7 @@ void computePuOffset(RecHitCollection& rechits) {
 
 //------------------------------------------------------------------------------------------------------
 template <class Collection>
-void produceJets(Collection& constituents, JetCollection& jets, const float& r, const float ptmin, const bool doPuSubtraction = false) {
+void produceJets(Collection& constituents, JetCollection& jets, const float& r, const selection cuts, const bool doPuSubtraction = false, const bool doSubstructure = false) {
       
    // first convert constituents into fastjet pseudo-jets
    vector <PseudoJet> input_particles;
@@ -292,14 +309,16 @@ void produceJets(Collection& constituents, JetCollection& jets, const float& r, 
       input_particles.push_back( PseudoJet( constituents.at(i)->px(), constituents.at(i)->py(), constituents.at(i)->pz(), constituents.at(i)->energy()));
    }
    
-   
-   
    // Initial clustering with anti-kt algorithm
    JetAlgorithm algorithm = antikt_algorithm;
    double jet_rad = r; // jet radius for anti-kt algorithm
    JetDefinition jetDef = JetDefinition(algorithm,jet_rad,E_scheme,Best);
    
    vector<PseudoJet> akjets;
+   
+   Selector select_eta   = SelectorAbsEtaRange(cuts.absetamin, cuts.absetamax);
+   Selector select_pt    = SelectorPtRange(cuts.ptmin, cuts.ptmax);
+   Selector select_jets  = select_eta && select_pt;
    
    if(doPuSubtraction) {
        
@@ -311,7 +330,8 @@ void produceJets(Collection& constituents, JetCollection& jets, const float& r, 
 
        AreaDefinition areaDef(active_area, GhostedAreaSpec(selector));
        ClusterSequenceArea clust_seq(input_particles,jetDef, areaDef);
-       vector<PseudoJet> antikt_jets  = SelectorPtMin(ptmin)(sorted_by_pt(clust_seq.inclusive_jets()));
+       
+       vector<PseudoJet> antikt_jets  = clust_seq.inclusive_jets();
 
        // now apply PU subtraction
        RectangularGrid grid(-etamax, etamax, spacing, spacing, selector);
@@ -319,7 +339,12 @@ void produceJets(Collection& constituents, JetCollection& jets, const float& r, 
        gmbge.set_particles(input_particles);
        Subtractor subtractor(&gmbge);
        akjets = subtractor(antikt_jets);
-       convertJets(clust_seq, akjets, r, ptmin, jets);
+       
+       // apply cuts
+       akjets = select_jets(sorted_by_pt(akjets));
+       
+       // eventually apply substructure and store in custom dataformat
+       convertJets(clust_seq, akjets, r, jets, doSubstructure);
 
        // soft killer PU (could be used later)
 
@@ -363,7 +388,12 @@ void produceJets(Collection& constituents, JetCollection& jets, const float& r, 
        
        ClusterSequence clust_seq(input_particles,jetDef);
        akjets  = sorted_by_pt(clust_seq.inclusive_jets());
-       convertJets(clust_seq, akjets, r, ptmin, jets);
+
+       // apply cuts
+       akjets = select_jets(akjets);
+
+       // eventually apply substructure and store in custom dataformat
+       convertJets(clust_seq, akjets, r, jets, doSubstructure);
    }
    
 }
@@ -372,7 +402,7 @@ void produceJets(Collection& constituents, JetCollection& jets, const float& r, 
 
 //------------------------------------------------------------------------------------------------------
 template <class Sequence>
-void convertJets(Sequence seq, vector<PseudoJet> pseudojets, const float& r, double ptmin, JetCollection& jets){
+void convertJets(Sequence seq, vector<PseudoJet> pseudojets, const float& r, JetCollection& jets, const bool doSubstructure = false){
 
    TLorentzVector p4;
    for (unsigned j = 0; j < pseudojets.size() ; j++) { 
@@ -383,34 +413,34 @@ void convertJets(Sequence seq, vector<PseudoJet> pseudojets, const float& r, dou
        p4.SetPtEtaPhiM(this_jet.pt(), this_jet.eta(), this_jet.phi(), std::max(this_jet.m(),0.0));
        Jet jet(p4);
 
-       if (p4.Pt() < ptmin) continue;
+       if (doSubstructure) {
+       
+           // N-subjettiness
+           double beta = 1.0;
 
-       /*
-       // N-subjettiness
-       double beta = 1.0;
+           Nsubjettiness         nSub1_beta1(1,   OnePass_KT_Axes(), NormalizedMeasure(beta, r));
+           Nsubjettiness         nSub2_beta1(2,   OnePass_KT_Axes(), NormalizedMeasure(beta, r));
+           Nsubjettiness         nSub3_beta1(3,   OnePass_KT_Axes(), NormalizedMeasure(beta, r));
+           NsubjettinessRatio    nSub21_beta1(2,1, OnePass_KT_Axes(), NormalizedMeasure(beta, r));
+           NsubjettinessRatio    nSub32_beta1(3,2, OnePass_KT_Axes(), NormalizedMeasure(beta, r));
 
-       Nsubjettiness         nSub1_beta1(1,   OnePass_KT_Axes(), NormalizedMeasure(beta, r));
-       Nsubjettiness         nSub2_beta1(2,   OnePass_KT_Axes(), NormalizedMeasure(beta, r));
-       Nsubjettiness         nSub3_beta1(3,   OnePass_KT_Axes(), NormalizedMeasure(beta, r));
-       NsubjettinessRatio    nSub21_beta1(2,1, OnePass_KT_Axes(), NormalizedMeasure(beta, r));
-       NsubjettinessRatio    nSub32_beta1(3,2, OnePass_KT_Axes(), NormalizedMeasure(beta, r));
+           jet.setTau1(nSub1_beta1(this_jet));
+           jet.setTau2(nSub2_beta1(this_jet));
+           jet.setTau3(nSub3_beta1(this_jet));
+           jet.setTau21(nSub21_beta1(this_jet));
+           jet.setTau32(nSub32_beta1(this_jet));
 
-       jet.setTau1(nSub1_beta1(this_jet));
-       jet.setTau2(nSub2_beta1(this_jet));
-       jet.setTau3(nSub3_beta1(this_jet));
-       jet.setTau21(nSub21_beta1(this_jet));
-       jet.setTau32(nSub32_beta1(this_jet));
+           // soft drop
+           beta = 0.0;
+           double zcut = 0.1;
+           SoftDrop softDrop(beta,zcut);
+           PseudoJet softdrop_jet = softDrop(this_jet);
+           p4.SetPtEtaPhiM(softdrop_jet.pt(), softdrop_jet.eta(), softdrop_jet.phi(), std::max(softdrop_jet.m(),0.0));
+           jet.setSDmass(p4.M());
 
-       // soft drop
-       beta = 0.0;
-       double zcut = 0.1;
-       SoftDrop softDrop(beta,zcut);
-       PseudoJet softdrop_jet = softDrop(this_jet);
-       p4.SetPtEtaPhiM(softdrop_jet.pt(), softdrop_jet.eta(), softdrop_jet.phi(), std::max(softdrop_jet.m(),0.0));
-       jet.setSDmass(p4.M());
-
-       // store jet in collection
-       */
+           // store jet in collection
+       }
+       
        jets.Add(new Jet(jet));
    }   
 }
@@ -427,7 +457,7 @@ void matchJets(JetCollection& genjets, JetCollection& recojets, float dr){
        for (unsigned j = 0; j < recojets.size() ; j++) { 
           Jet *rj = recojets.at(j);
           float dr_gr = rj->p4().DeltaR(gj->p4());
-	  if( dr_gr < dr0 ){
+          if( dr_gr < dr0 ){
              rj0 = rj;
              dr0 = dr_gr;
           } 
@@ -435,7 +465,7 @@ void matchJets(JetCollection& genjets, JetCollection& recojets, float dr){
        // assign genjet ref. to best matching recojet (and vice versa)
        if (dr0 < dr){ 
          rj0->setRef(gj);
-	 gj->setRef(rj0);
+         gj->setRef(rj0);
        }
     }
 }
