@@ -1,5 +1,7 @@
-import ROOT, sys, os
-from ROOT import TFile, TH1F, TGraphErrors, TMultiGraph, TLegend, TF1,gROOT
+import ROOT
+import sys
+import os
+from ROOT import TFile, TH1F, TGraphErrors, TMultiGraph, TLegend, TF1, gROOT
 
 c = ROOT.TCanvas("", "", 600, 600) 
 ROOT.gROOT.SetBatch(True)
@@ -70,86 +72,87 @@ def myStyle():
 #_____________________________________________________________________________________________________
 
 def printResoHisto(histo,f, pt, eta, r, pu):
-   c = ROOT.TCanvas(histo.GetName(), "", 600, 600)
-   ROOT.gPad.SetLeftMargin(0.20) ; 
-   ROOT.gPad.SetRightMargin(0.05) ; 
-   ROOT.gPad.SetBottomMargin(0.20) ; 
-   ROOT.gStyle.SetOptStat(0000000);
-   ROOT.gStyle.SetTextFont(132);
-   ROOT.gStyle.SetOptStat(0000000)
-   c.cd()
-   histo.SetLineWidth(3)
-   histo.Draw()
-   f.SetLineWidth(3)
-   f.Draw('same')
+    print 'draw histogram with name: ',histo.GetName() 
+    ROOT.gStyle.SetOptFit(1)
+    c = ROOT.TCanvas(histo.GetName(), "", 600, 600)
+    ROOT.gPad.SetLeftMargin(0.20) ; 
+    ROOT.gPad.SetRightMargin(0.05) ; 
+    ROOT.gPad.SetBottomMargin(0.20) ; 
+    ROOT.gStyle.SetOptStat(0000000);
+    ROOT.gStyle.SetTextFont(132);
+    ROOT.gStyle.SetOptStat(0000000)
+    c.cd()
+    histo.SetLineWidth(3)
+    histo.Draw()
+    f.SetLineWidth(3)
+    f.Draw('same')
 
-   histo.SetMaximum(1.6*histo.GetMaximum())
-   histo.SetMinimum(0.)
-   histo.GetXaxis().SetRangeUser(0., 1.5)
+    histo.SetMaximum(1.6*histo.GetMaximum())
+    histo.SetMinimum(0.)
+    histo.GetXaxis().SetRangeUser(0., 1.5)
    
-   histo.GetYaxis().SetLabelFont(132)
-   histo.GetYaxis().SetTitleFont(132)
-   histo.GetXaxis().SetLabelFont(132)
-   histo.GetXaxis().SetTitleFont(132)
+    histo.GetYaxis().SetLabelFont(132)
+    histo.GetYaxis().SetTitleFont(132)
+    histo.GetXaxis().SetLabelFont(132)
+    histo.GetXaxis().SetTitleFont(132)
    
-   histo.GetXaxis().SetTitleOffset(1.2)
-   histo.GetYaxis().SetTitleOffset(1.2)
-   histo.GetXaxis().SetLabelOffset(0.02)
-   histo.GetYaxis().SetLabelOffset(0.02)
-   histo.GetXaxis().SetTitleSize(0.06)
-   histo.GetYaxis().SetTitleSize(0.06)
-   histo.GetXaxis().SetLabelSize(0.06)
-   histo.GetYaxis().SetLabelSize(0.06)
-   histo.GetXaxis().SetNdivisions(505)
-   histo.GetYaxis().SetNdivisions(505)
+    histo.GetXaxis().SetTitleOffset(1.2)
+    histo.GetYaxis().SetTitleOffset(1.2)
+    histo.GetXaxis().SetLabelOffset(0.02)
+    histo.GetYaxis().SetLabelOffset(0.02)
+    histo.GetXaxis().SetTitleSize(0.06)
+    histo.GetYaxis().SetTitleSize(0.06)
+    histo.GetXaxis().SetLabelSize(0.06)
+    histo.GetYaxis().SetLabelSize(0.06)
+    histo.GetXaxis().SetNdivisions(505)
+    histo.GetYaxis().SetNdivisions(505)
    
    
-   ptext = ROOT.TPaveText(0.21,0.62,0.50,.87)
-   ptext.AddText("{} pile-up".format(pu))
-   ptext.AddText("anti-k_{{T}}, R = {}".format(r))
-   ptext.AddText('{} < |#eta| < {} '.format(eta[0], eta[1]))
-   ptext.AddText("p_{{T}} = {} GeV".format(pt))
-   
-   ptext.SetTextFont(132)
-   ptext.SetTextSize(0.035) 
-   ptext.SetFillColor(0)
-   ptext.SetFillStyle(0)
-   ptext.SetLineColor(0)
-   ptext.SetBorderSize(1)
-   ptext.Paint('NDC')
-   ptext.Draw()
-   
-   '''Tleft = ROOT.TLatex(0.23, 0.92, lt) 
-   Tleft.SetNDC(ROOT.kTRUE) 
-   Tleft.SetTextSize(0.044) 
-   Tleft.SetTextFont(132) '''
+    ptext = ROOT.TPaveText(0.21,0.62,0.50,.87)
+    ptext.AddText("{0} pile-up".format(pu))
+    ptext.AddText("anti-k_{{T}}, R = {0}".format(r))
+    ptext.AddText('{0} < |#eta| < {1} '.format(eta[0], eta[1]))
+    ptext.AddText("p_{{T}} = {0} GeV".format(pt))
+    
+    ptext.SetTextFont(132)
+    ptext.SetTextSize(0.035) 
+    ptext.SetFillColor(0)
+    ptext.SetFillStyle(0)
+    ptext.SetLineColor(0)
+    ptext.SetBorderSize(1)
+    ptext.Paint('NDC')
+    ptext.Draw()
+    
+    '''Tleft = ROOT.TLatex(0.23, 0.92, lt) 
+    Tleft.SetNDC(ROOT.kTRUE) 
+    Tleft.SetTextSize(0.044) 
+    Tleft.SetTextFont(132) '''
+    
+    ps = histo.FindObject('stats')
+    #ps.SetX1NDC(0.60)
+    #ps.SetX2NDC(0.95)
+    #ps.SetY1NDC(0.70)
+    #ps.SetY2NDC(0.90)
+    c.Modified()
+    c.Update()
+    
+    histo.GetXaxis().SetTitle('p_{T}^{reco} / p_{T}^{gen}')
+    
+    basename = os.path.basename(histo.GetName())
+    if not os.path.exists('plots'):
+        os.makedirs('plots')
+    plotname = 'plots/'+basename+'.png'
+    print plotname
 
-   ROOT.gStyle.SetOptFit()
-   ps = histo.GetListOfFunctions().FindObject("stats")
-   ps.SetX1NDC(0.60)
-   ps.SetX2NDC(0.95)
-   ps.SetY1NDC(0.70)
-   ps.SetY2NDC(0.90)
-   c.Modified()
-   c.Update()
-
-   histo.GetXaxis().SetTitle('p_{T}^{reco} / p_{T}^{gen}')
-
-   basename = os.path.basename(histo.GetName())
-   if not os.path.exists('plots'):
-       os.makedirs('plots')
-       plotname = 'plots/'+basename+'.png'
-
-       c.Print(plotname)
-
+    c.Print(plotname)
+        
 #_____________________________________________________________________________________________________
 def drawMultiGraph(mg, name, lt, rt, pdir, xmin, xmax, ymin, ymax, logx, logy, bl, f):
-    
     #myStyle()
     ROOT.gStyle.SetOptStat(0000000)
-
+    
     canvas = ROOT.TCanvas(name, '', 600,600) 
-
+    
     ROOT.gPad.SetLeftMargin(0.20) ; 
     ROOT.gPad.SetRightMargin(0.05) ; 
     ROOT.gPad.SetBottomMargin(0.20) ; 
@@ -176,65 +179,63 @@ def drawMultiGraph(mg, name, lt, rt, pdir, xmin, xmax, ymin, ymax, logx, logy, b
     Tleft.Draw()
 
     canvas.cd(0)
-
+    
     if logx: ROOT.gPad.SetLogx()
     if logy: ROOT.gPad.SetLogy()
 
+    mg.Draw("AP")
     # fit stuff
-
     if f:
-       mg.Draw("AP")
-
-       '''
-       strA = '{:.2f}'.format(f.GetParameter(0)/100.)
-       strB = '{:.0f}'.format(f.GetParameter(1))
-       strC = '{:.0f}'.format(f.GetParameter(2))'''
-       
-       strA = '{:.0f}'.format(f.GetParameter(0))
-       strB = '{:.1f}'.format(f.GetParameter(1))
-       
+        '''
+        strA = '{:.2f}'.format(f.GetParameter(0)/100.)
+        strB = '{:.0f}'.format(f.GetParameter(1))
+        strC = '{:.0f}'.format(f.GetParameter(2))'''
+        
+        strA = '{:.0f}'.format(f.GetParameter(0))
+        strB = '{:.1f}'.format(f.GetParameter(1))
+        
        #fittext = '#frac{#sigma(p_{T})}{p_{T}} = #frac{A [GeV]}{p_{T}} #oplus #frac{B%}{#sqrt{p_{T}}} #oplus C%'
-       fittext = '#frac{#sigma(p_{T})}{p_{T}} = #frac{A%}{#sqrt{p_{T}}} #oplus B%'
-
-       fittext = fittext.replace('A', strA)
-       fittext = fittext.replace('B', strB)
+        fittext = '#frac{#sigma(p_{T})}{p_{T}} = #frac{A%}{#sqrt{p_{T}}} #oplus B%'
+        
+        fittext = fittext.replace('A', strA)
+        fittext = fittext.replace('B', strB)
        #fittext = fittext.replace('C', strC)
-
-       Tfit = ROOT.TLatex(0.4, 0.55, fittext)
-       Tfit.SetNDC(ROOT.kTRUE) 
-       Tfit.SetTextSize(0.04) 
-       Tfit.SetTextFont(132) 
-       Tfit.SetTextColor(ROOT.kRed+1) 
-
-       f.SetLineColor(ROOT.kRed+1)
-       f.SetLineWidth(3)
-       f.Draw('same')
-       Tfit.Draw('same') 
-
+        
+        Tfit = ROOT.TLatex(0.4, 0.55, fittext)
+        Tfit.SetNDC(ROOT.kTRUE) 
+        Tfit.SetTextSize(0.04) 
+        Tfit.SetTextFont(132) 
+        Tfit.SetTextColor(ROOT.kRed+1) 
+        
+        f.SetLineColor(ROOT.kRed+1)
+        f.SetLineWidth(3)
+        f.Draw('same')
+        Tfit.Draw('same') 
+        
     else:
-       mg.Draw("ALP")
-
-    mg.GetYaxis().SetLabelFont(132)
-    mg.GetYaxis().SetTitleFont(132)
-    mg.GetYaxis().SetLabelOffset(0.015)
-    mg.GetYaxis().CenterTitle()
-    mg.GetYaxis().SetNdivisions(505)
-    mg.GetXaxis().SetNdivisions(505)
-    mg.GetYaxis().SetTitleOffset(1.4)
-
-    mg.GetXaxis().SetTitleFont(132)
-    mg.GetXaxis().SetLabelFont(132)
-    mg.GetXaxis().SetLabelOffset(0.02)
-    mg.GetXaxis().SetTitleOffset(1.5)
-    mg.GetXaxis().SetTitleSize(0.06)
-    mg.GetYaxis().SetTitleSize(0.06)
-    mg.GetXaxis().SetLabelSize(0.06)
-    mg.GetYaxis().SetLabelSize(0.06)
-    mg.GetXaxis().SetRangeUser(xmin, xmax)
-    mg.SetMinimum(ymin)
-    mg.SetMaximum(ymax)
-
-   
+        mg.Draw("ALP")
+        
+    #mg.GetYaxis().SetLabelFont(132)
+    #mg.GetYaxis().SetTitleFont(132)
+    #mg.GetYaxis().SetLabelOffset(0.015)
+    #mg.GetYaxis().CenterTitle()
+    #mg.GetYaxis().SetNdivisions(505)
+    #mg.GetXaxis().SetNdivisions(505)
+    #mg.GetYaxis().SetTitleOffset(1.4)
+    #
+    #mg.GetXaxis().SetTitleFont(132)
+    #mg.GetXaxis().SetLabelFont(132)
+    #mg.GetXaxis().SetLabelOffset(0.02)
+    #mg.GetXaxis().SetTitleOffset(1.5)
+    #mg.GetXaxis().SetTitleSize(0.06)
+    #mg.GetYaxis().SetTitleSize(0.06)
+    #mg.GetXaxis().SetLabelSize(0.06)
+    #mg.GetYaxis().SetLabelSize(0.06)
+    #mg.GetXaxis().SetRangeUser(xmin, xmax)
+    #mg.SetMinimum(ymin)
+    #mg.SetMaximum(ymax)
+        
+    
     if bl:
         leg = canvas.BuildLegend(0.62,0.68,0.92,0.88)
         leg.SetTextFont(132) 
@@ -245,7 +246,7 @@ def drawMultiGraph(mg, name, lt, rt, pdir, xmin, xmax, ymin, ymax, logx, logy, b
     
     Tleft.Draw() 
     Tright.Draw() 
-    mg.GetXaxis().SetRangeUser(xmin, xmax)
+    #mg.GetXaxis().SetRangeUser(xmin, xmax)
 
     canvas.Print('{}/{}.png'.format(pdir, name), 'png')
 
@@ -253,8 +254,9 @@ def drawMultiGraph(mg, name, lt, rt, pdir, xmin, xmax, ymin, ymax, logx, logy, b
 
 fileName = sys.argv[1]
 
-ptbins = [10., 20., 30.,50., 75., 100., 150., 200., 300., 500., 750., 1000., 1500., 2000., 5000.]
-#ptbins = [10., 20., 30.,50., 75., 100., 150., 200., 300., 500., 750., 1000., 1500.]
+#ptvals = {10., 20., 30.,50., 75., 100., 150., 200., 300., 500., 750., 1000., 1500., 2000., 5000.};
+ptbins = [10., 20., 30., 50., 75., 100., 150., 200., 300., 500., 750., 1000., 1500., 2000.] #, 5000.]
+pts = [20,50,100,200,500,1000,2000]
 
 mus = dict()
 sigs = dict()
@@ -268,55 +270,76 @@ pu = 0
 hfile = ROOT.TFile(fileName)
 
 # retrieve histograms from ROOT files
-i = 0
-for pt in ptbins:
+num = 0
+for i, pt in enumerate(ptbins):
+    print i
+    if i+1 == len(ptbins):
+        break
+    num = i
+    histname = 'reco/reso/reco_{0}_{1}'.format(int(ptbins[i]),int(ptbins[i+1]))
     
-    if i == len(ptbins)-1:
-       break
+    pt = ptbins[i+1] # 0.5*(ptbins[i]+ptbins[i+1])
+    print pt
     
-    histname = 'reco/reso/reco_{:.0f}_{:.0f}'.format(ptbins[i],ptbins[i+1])
-
-    pt = 0.5*(ptbins[i]+ptbins[i+1])
-
+    print histname    
     hist = hfile.Get(histname)
+    
+    if hist.GetEntries() == 0:
+        print 'Stops at ',pt 
+        break
     histo = hist.Clone()
+
     histo.SetName(histname)
-
-    fname = 'f{}'.format(histname)
-
+    
+    fname = '{0}'.format(histname)
+    
     if histo.Integral() > 0:
         histo.Scale(1/histo.Integral())
-
+        
     x0 = histo.GetXaxis().GetBinCenter(histo.GetMaximumBin())      
     d = histo.GetRMS()
-
+        
     # now perform gaussian fit in [x_max_sigm, x_max_sigp]
-    f = ROOT.TF1(fname, 'gaus',0.0, 2.0)
+    fit = ROOT.TF1(fname, 'gaus',0.0, 2.0)
 
     s = 1.0
     histo.Fit(fname, 'Q', '', x0 - s*d, x0 + s*d)
-    printResoHisto(histo, f, pt, eta, r, pu)
+    printResoHisto(histo, fit, pt, eta, r, pu)
 
     key = pt
 
-    mus[key]  = (f.GetParameter(1), f.GetParError(1))
-    sigs[key] = (f.GetParameter(2)*100, f.GetParError(2)*100)
+    mus[key]  = (fit.GetParameter(1), fit.GetParError(1))
+    sigs[key] = (fit.GetParameter(2)*100, fit.GetParError(2)*100)
 
     print '---------------------------------------------'
     print 'fitting results for {} < pt < {}'.format(ptbins[i],ptbins[i+1])
     print '---------------------------------------------'
     print ''
 
-    mus[key]  = (f.GetParameter(1), f.GetParError(1))
-    sigs[key] = (f.GetParameter(2)*100 / f.GetParameter(1), f.GetParError(2)*100 / f.GetParameter(1))
+    mus[key]  = (fit.GetParameter(1), fit.GetParError(1))
+    sigs[key] = (fit.GetParameter(2)*100 / fit.GetParameter(1), fit.GetParError(2)*100 / fit.GetParameter(1))
+
+    # Check of gen particle pt
+    genhistname = 'gen/reso/gen_{0}_{1}'.format(int(ptbins[i]),int(ptbins[i+1]))
+    genhist = hfile.Get(genhistname)
+    genhisto = genhist.Clone()
+    genfname = '{0}'.format(genhistname)
+    genx0 = genhisto.GetXaxis().GetBinCenter(genhisto.GetMaximumBin())
+    gend = genhisto.GetRMS()
+    # now perform gaussian fit in [x_max_sigm, x_max_sigp]                                                                                                                                                                                
+    genfit = ROOT.TF1(genfname, 'gaus',0.0, 2.0)
+    genhisto.SetName(genhistname)
+
+    genhisto.Fit(genfname, 'Q', '', genx0 - s*gend, genx0 + s*gend)
+    printResoHisto(genhisto, genfit, pt, eta, r, pu)
+
 
     print 'mu  = ', '{:.2f} +/- {:.2f}'.format(mus[key][0], mus[key][1])
     print 'res = ', '{:.2f} +/- {:.2f}'.format(sigs[key][0], sigs[key][1])
-    print ''
-    print ''
-    i += 1
+    print 'mean of genParticles = ',genhisto.GetMean()
+    print 'mu   of genParticles = ',genfit.GetParameter(1)
 
-sigs[25]= (20., 0.1)
+# sigs[25]= (20., 0.1)
 
 # now do multigraphs
 
@@ -351,31 +374,30 @@ resp_pt.SetFillColor(0)
 resp_pt.SetLineWidth(4)
 resp_pt.SetMarkerColor(colors[1])
 
-i = 0
-for pt in ptbins:
-   if i == len(ptbins)-1:
-      break
-
-   pt = 0.5*(ptbins[i]+ptbins[i+1])
-   key = pt
-
-   title = '{} < |#eta| < {} '.format(eta[0], eta[1])
-   reso_pt.SetTitle(title)
-   reso_pt.SetPoint(i,pt,sigs[key][0])
-   reso_pt.SetPointError(i,0.,sigs[key][1])
-   pt = 0.5*(ptbins[i]+ptbins[i+1])
-
-   resp_pt.SetTitle(title)
-   resp_pt.SetPoint(i,pt,mus[key][0])
-   resp_pt.SetPointError(i,0.,mus[key][1])
-
-   i += 1
-
+for i, pt in enumerate(ptbins):
+    
+    if i+1 == len(ptbins):
+        break
+    if i >= num:
+        break
+    
+    pt = ptbins[i+1] # 0.5*(ptbins[i]+ptbins[i+1])
+    key = pt
+    
+    title = '{} < |#eta| < {} '.format(eta[0], eta[1])
+    reso_pt.SetTitle(title)
+    reso_pt.SetPoint(i,pt,sigs[key][0])
+    reso_pt.SetPointError(i,0.,sigs[key][1])
+#    pt = 0.5*(ptbins[i]+ptbins[i+1])
+    
+    resp_pt.SetTitle(title)
+    resp_pt.SetPoint(i,pt,mus[key][0])
+    resp_pt.SetPointError(i,0.,mus[key][1])
+    
 # fit pt resolution
-#freso = ROOT.TF1('reso', 'sqrt([0]^2/x^2 + [1]^2/x + [2]^2)',0.0, 10000.0)
-freso = ROOT.TF1('reso', 'sqrt([0]^2/x + [1]^2)',0.0, 5000.0)
+freso = ROOT.TF1('reso', 'sqrt([0]^2/x^2 + [1]^2/x + [2]^2)',0.0, 10000.0)
 #freso.SetParLimits(0,0,100)
-
+    
 '''freso.SetParLimits(0,0,50)
 freso.SetParLimits(1,60,200)
 freso.SetParLimits(2,0,5)
@@ -391,11 +413,12 @@ mg_resp_pt.Add(resp_pt)
 
 basename = os.path.basename(fileName)
 basename = os.path.splitext(basename)[0]
+print basename
+name_reso = '{0}_reso_pt_{1}_{2}pu'.format(basename,algo,pu)
+name_resp = '{0}_resp_pt_{1}_{2}pu'.format(basename,algo,pu)
 
-name_reso = '{}_reso_pt_{}_{}pu'.format(basename,algo,pu)
-name_resp = '{}_resp_pt_{}_{}pu'.format(basename,algo,pu)
-
-drawMultiGraph(mg_reso_pt, name_reso, lt, rt, 'plots', 10, 5000., 0., 50., True, False, False, freso)   
+#raw_input ("Press Enter to continue.. ")
+drawMultiGraph(mg_reso_pt, name_reso, lt, rt, 'plots', 10, 2000., 0., 50., True, False, False, freso)   
 freso = None
-drawMultiGraph(mg_resp_pt, name_resp, lt, rt, 'plots', 10., 5000., 0.5, 1.2, True, False, True, freso)   
+drawMultiGraph(mg_resp_pt, name_resp, lt, rt, 'plots', 10., 2000., 0.5, 1.2, True, False, True, freso)   
 

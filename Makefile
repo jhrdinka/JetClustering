@@ -17,10 +17,13 @@ LDLIBS=-g $(shell root-config --libs) $(shell fastjet-config --libs) $(CONTRIB_L
 SRCS=$(wildcard src/*.cc) $(wildcard classes/*.cc) 
 OBJS=$(subst .cc,.o,$(SRCS))
 
-all: analyze
+all: analyze analyzeCluster
 
 analyze: $(OBJS)
 	$(CXX) $(LDFLAGS) -o analyze $(OBJS) $(LDLIBS) 
+
+analyzeCluster: $(OBJS)
+	$(CXX) $(LDFLAGS) -o analyzeCluster $(OBJS) $(LDLIBS) 
 
 depend: .depend
 

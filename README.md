@@ -35,18 +35,24 @@ e.g:
 []() LSF submission
 --------------------
 
-The script ```batch/submitJetClustering.py``` allows to run this script on LSF queues:
+The script ```batch/submitJetClustering.py``` allows to run this script on LSF queues.
+Choose a new output directory, in which one out/ and std/ will be build.
 
 ```
 python batch/submitJetClustering.py -i [NTUP_dir] -n [nevts_per_job] -o [output_dir] --njobs [number_of_jobs] -q [queue]
 ```
 
-Jobs can be collected via:
-
+Jobs will be collected for certain jet alorithm and pt, in directory /eos/experiment/fcc/users/c/cneubuse/JetClustering/:
 
 ```
-python submitJetClustering.py -o [output_dir] --collect
+python submitJetClustering.py --collect antiKt --collectPt 20
 ```
+
+Already merged files per pt, can be collected via:
+
+python submitJetClustering.py --collect antiKt --allPts
+
+for default pts = ( 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000 ) GeV
 
 e.g:
 ```
