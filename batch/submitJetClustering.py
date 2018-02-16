@@ -43,30 +43,35 @@ def main():
     max_events    = int(options.nev)
     queue         = options.queue
     collect       = options.collect
-    en            = int(options.collectPt)
 
-    if collect:
-       print 'Collecting jobs for process: '+str(collect)
-       input_dir = '/eos/experiment/fcc/users/c/cneubuse/JetClustering/'
-       print 'Find files in ', input_dir+collect+'/'+str(en)+'GeVljets'
-       hadd_dir = input_dir+collect+'/'+str(en)+'GeVljets/out/'
-       basename = input_dir+collect+'/'+str(en)+'GeVljets'
-       basename = os.path.basename(basename)
-       outfile = hadd_dir + basename + '.root'
-       hadd_files = hadd_dir + basename + '_*.root'
-       cmd ='hadd -f '+ outfile + ' ' + hadd_files
-       os.system(cmd)
+    if collect and options.collectPt:
+        en = int(options.collectPt)
+        print 'Collecting jobs for process: '+str(collect)
+        input_dir = '/eos/experiment/fcc/users/c/cneubuse/JetClustering/'
+        print 'Find files in ', input_dir+collect+'/'+str(en)+'GeVljets'
+        hadd_dir = input_dir+collect+'/'+str(en)+'GeVljets/out/'
+        basename = input_dir+collect+'/'+str(en)+'GeVljets'
+        basename = os.path.basename(basename)
+        outfile = hadd_dir + basename + '.root'
+        hadd_files = hadd_dir + basename + '_*.root'
+        cmd ='hadd -f '+ outfile + ' ' + hadd_files
+        os.system(cmd)
        #cmd = 'rm -rf '+hadd_files+' '+output_dir+'/std'
        #os.system(cmd)
-       sys.exit('Collection of jobs done.')
+        sys.exit('Collection of jobs done.')
        
-    if collect and allPts:
+    if collect and options.allPts:
         input_dir = '/eos/experiment/fcc/users/c/cneubuse/JetClustering/'
         energies = [20,50,100,200,500,1000,2000,5000,10000]
+        outfile = input_dir+collect+'/all_'+collect+'.root'
         for energy in energies:
-            dir_out = str(input_dir)+str(energy)+'GeVljets_'+str(collect)+'/out/'
-            print 'directory in which to find the merged files of energy {0} : {1}'.format(energy,dir_out)
- 
+            dir_out = str(input_dir)+collect+'/'+str(energy)+'GeVljets/out/'
+            print 'directory in which to find the merged files of energy {0}GeV : {1}'.format(energy,dir_out)
+            os.system('cp '+dir_out+str(energy)+'GeVljets.root '+input_dir+collect+'/')
+        hadd_files = input_dir+collect+'/*ljets.root'
+        os.system('hadd -f '+ outfile + ' ' + hadd_files)
+        sys.exit('All energies have been collected, saved as: '+outfile)
+
     # first create output dir
     if not os.path.exists(output_dir):
        os.makedirs(output_dir)
