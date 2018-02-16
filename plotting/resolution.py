@@ -135,12 +135,19 @@ def printResoHisto(histo,f, pt, eta, r, pu):
 
    histo.GetXaxis().SetTitle('p_{T}^{reco} / p_{T}^{gen}')
 
-   basename = os.path.basename(histo.GetName())
-   if not os.path.exists('plots'):
-       os.makedirs('plots')
-       plotname = 'plots/'+basename+'.png'
+   print pt
 
-       c.Print(plotname)
+   dirname = 'plots/resolutions/pt_'
+   if not os.path.exists(dirname):
+      os.makedirs(dirname)
+
+   name = '{}{:.0f}'.format(dirname,pt)
+   plotname = name+'.png'
+   c.Print(plotname)
+   plotname = name+'.pdf'
+   c.Print(plotname)
+
+
 
 #_____________________________________________________________________________________________________
 def drawMultiGraph(mg, name, lt, rt, pdir, xmin, xmax, ymin, ymax, logx, logy, bl, f):
