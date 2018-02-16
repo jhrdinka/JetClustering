@@ -50,7 +50,9 @@ python submitJetClustering.py --collect antiKt --collectPt 20
 
 Already merged files per pt, can be collected via:
 
+```
 python submitJetClustering.py --collect antiKt --allPts
+```
 
 for default pts = ( 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000 ) GeV
 
