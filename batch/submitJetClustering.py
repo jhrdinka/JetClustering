@@ -25,8 +25,16 @@ def main():
                        dest='njobs',
                        default='10')
 
-    parser.add_option("-c","--collect", help="collects jobs for given output name",
-		      dest="collect", action="store_true", 
+    parser.add_option("-c","--collect", help="collects jobs for given algorithm",
+		      dest="collect", 
+		      default='')
+
+    parser.add_option("-e","--collectPt", help="collects jobs for given pt",
+		      dest="collectPt",
+		      default='')
+
+    parser.add_option("-a","--allPts", help="collects jobs for all pts",
+		      dest="allPts", action="store_true", 
 		      default=False)
 
     (options, args) = parser.parse_args()
@@ -35,20 +43,30 @@ def main():
     max_events    = int(options.nev)
     queue         = options.queue
     collect       = options.collect
+    en            = int(options.collectPt)
 
     if collect:
-       print 'Collecting jobs for process: '+output_dir
-       hadd_dir = output_dir +'/out/'
-       basename = output_dir
+       print 'Collecting jobs for process: '+str(collect)
+       input_dir = '/eos/experiment/fcc/users/c/cneubuse/JetClustering/'
+       print 'Find files in ', input_dir+collect+'/'+str(en)+'GeVljets'
+       hadd_dir = input_dir+collect+'/'+str(en)+'GeVljets/out/'
+       basename = input_dir+collect+'/'+str(en)+'GeVljets'
        basename = os.path.basename(basename)
        outfile = hadd_dir + basename + '.root'
        hadd_files = hadd_dir + basename + '_*.root'
        cmd ='hadd -f '+ outfile + ' ' + hadd_files
        os.system(cmd)
-       cmd = 'rm -rf '+hadd_files+' '+output_dir+'/std'
-       os.system(cmd)
+       #cmd = 'rm -rf '+hadd_files+' '+output_dir+'/std'
+       #os.system(cmd)
        sys.exit('Collection of jobs done.')
-
+       
+    if collect and allPts:
+        input_dir = '/eos/experiment/fcc/users/c/cneubuse/JetClustering/'
+        energies = [20,50,100,200,500,1000,2000,5000,10000]
+        for energy in energies:
+            dir_out = str(input_dir)+str(energy)+'GeVljets_'+str(collect)+'/out/'
+            print 'directory in which to find the merged files of energy {0} : {1}'.format(energy,dir_out)
+ 
     # first create output dir
     if not os.path.exists(output_dir):
        os.makedirs(output_dir)
@@ -58,7 +76,7 @@ def main():
        sys.exit('Output dir: "'+output_dir+'" exists.')
 
     # find list of input files
-    cmd = "find {} -type f -name '*.root'".format(options.input)
+    cmd = "find {0} -type f -name '*.root'".format(options.input)
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
     lst = process.communicate()[0]
     list_of_files = lst.splitlines()
@@ -79,11 +97,11 @@ def main():
        else:
           runtype = 'FCC'
        
-       outputFile = currentDir+'/'+output_dir+'/out/'+basename+'.root'
+       outputFile = output_dir+'/out/'+basename+'.root'
        cmd = 'bsub -o '+output_dir+'/std/'+basename +'.out -e '+output_dir+'/std/'+basename +'.err -q '+queue
-       cmd +=' -J '+basename+' "submitJets.sh '+currentDir+' '+inputFile+' '+outputFile+' '+str(max_events)+' '+runtype+'"'
+       cmd +=' -J '+basename+' "'+currentDir+'/submitJets.sh '+inputFile+' '+outputFile+' '+str(max_events)+' '+runtype+'"'
        
-       #print cmd
+       print cmd
        # submitting jobs
        os.system(cmd)
 

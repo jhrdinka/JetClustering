@@ -8,6 +8,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <glob.h>
 
 // ROOT includes
 #include <TFile.h>
@@ -48,10 +49,10 @@ using namespace fastjet::contrib;
 
 //----------------------------------------------------------------------
 struct selection {
-   double ptmin;
-   double ptmax;
-   double absetamin;
-   double absetamax;
+  double ptmin;
+  double ptmax;
+  double absetamin;
+  double absetamax;
 };
 
 //----------------------------------------------------------------------
@@ -64,179 +65,204 @@ void convertJets(Sequence seq, vector<PseudoJet> pseudojets, const float& r, Jet
 void matchJets(JetCollection& genjets, JetCollection& recojets, float dr);
 void printJets(JetCollection & jets);
 void computePuOffset(RecHitCollection& rechits);
+JetCollection sumOverCone(JetCollection& recojets, RecHitCollection& rechits);
 
+vector<std::string> globVector(const std::string& pattern){
+  glob_t glob_result;
+  glob(pattern.c_str(),GLOB_TILDE,NULL,&glob_result);
+  vector<std::string> files;
+  for(unsigned int i=0;i<glob_result.gl_pathc;++i){
+    files.push_back(string(glob_result.gl_pathv[i]));
+  }
+  globfree(&glob_result);
+  return files;
+}
 
 //----------------------------------------------------------------------
 int main(int argc, char* argv[]){
 
 
- // Check the number of parameters
+  // Check the number of parameters
   if (argc < 5) {
-      // Tell the user how to run the program
-      std::cerr << "Usage: " << argv[0] << " [input.root] " << " [output.root] " <<" [Nevts] [CMS/FCC]" <<std::endl;
-      return 1;
+    // Tell the user how to run the program
+    std::cerr << "Usage: " << argv[0] << " [input.root] " << " [output.root] " <<" [Nevts] [CMS/FCC]" <<std::endl;
+    return 1;
   }
 
   TString runType = argv[4];
   if(runType != "CMS" && runType != "FCC"){
-     cerr << "Should specifiy CMS or FCC as last argument"<<endl;
-     return 1;
+    cerr << "Should specifiy CMS or FCC as last argument"<<endl;
+    return 1;
   }
-  
-  // ---   Tree stuff declarations
-  
-  TFile *f = new TFile(argv[1]);
-  TTree *t = (TTree*)f->Get("ana/hgc");
 
-  vector<Float_t> *rechit_pt        = 0;
-  vector<Float_t> *rechit_eta       = 0;
-  vector<Float_t> *rechit_phi       = 0;
-  vector<Float_t> *rechit_energy    = 0;
-  vector<Float_t> *rechit_x         = 0;
-  vector<Float_t> *rechit_y         = 0;
-  vector<Float_t> *rechit_z         = 0;
-  vector<Float_t> *rechit_thickness = 0;
-  vector<Float_t> *rechit_layer     = 0;
-
-  vector<Float_t> *genpart_pt       = 0;
-  vector<Float_t> *genpart_eta      = 0;
-  vector<Float_t> *genpart_phi      = 0;
-  vector<Float_t> *genpart_energy   = 0;
-  vector<Float_t> *genpart_status   = 0;
-  vector<Float_t> *genpart_pdgid    = 0;
-
-  t->SetBranchAddress("rechit_eta", &rechit_eta);
-  t->SetBranchAddress("rechit_phi", &rechit_phi);
-  t->SetBranchAddress("rechit_pt", &rechit_pt);
-  t->SetBranchAddress("rechit_energy", &rechit_energy);
-  t->SetBranchAddress("rechit_x", &rechit_x);
-  t->SetBranchAddress("rechit_y", &rechit_y);
-  t->SetBranchAddress("rechit_z", &rechit_z);
-  if(runType == "CMS")t->SetBranchAddress("rechit_thickness", &rechit_thickness);
-  t->SetBranchAddress("rechit_layer", &rechit_layer);
-
-  t->SetBranchAddress("gen_eta", &genpart_eta);
-  t->SetBranchAddress("gen_phi", &genpart_phi);
-  t->SetBranchAddress("gen_pt", &genpart_pt);
-  t->SetBranchAddress("gen_energy", &genpart_energy);
-  t->SetBranchAddress("gen_status", &genpart_status);
-  t->SetBranchAddress("gen_pdgid", &genpart_pdgid);
-
-  // declare histograms
+  // declare histograms                                                                                              
   vector<float> ptvals;
-  ptvals = {10., 20., 30.,50., 75., 100., 150., 200., 300., 500., 750., 1000., 1500., 2000., 5000.};
-  
+  ptvals = {10., 20., 30., 50., 75., 100., 150., 200., 300., 500., 750., 1000., 1500., 2000., 5000., 7500.};
+  //ptvals = {20., 50., 100., 200., 500., 1000., 2000.}; 
+  //ptvals = {10., 30., 70., 130., 270., 730., 1270., 2730};
+
   JetPlots gen_plots  = JetPlots("gen", ptvals);
   JetPlots reco_plots = JetPlots("reco", ptvals);
 
-  // calibration 
-  RecHitCalibration recHitCalibration;
+  // std::stringstream inputPath;
+  // inputPath << argv[1] << "/*.root";
+  // std::cout << inputPath.str() << std::endl;
+  // vector<std::string> files = globVector(inputPath.str());
 
-  // generic declarations
-  TLorentzVector rechit_p4, rechit_pos;
-  TLorentzVector genpart_p4;
+  // -- Loop over files
+  //  for (const auto& ifile : files){
+  // std::cout << ifile << std::endl;
+  // ---   Tree stuff declarations
+  TFile *f = TFile::Open(argv[1]); // ifile.c_str());
+  if (f != NULL){
+    TTree *t = (TTree*)f->Get("ana/hgc");
+      
+      vector<Float_t> *rechit_pt        = 0;
+      vector<Float_t> *rechit_eta       = 0;
+      vector<Float_t> *rechit_phi       = 0;
+      vector<Float_t> *rechit_energy    = 0;
+      vector<Float_t> *rechit_x         = 0;
+      vector<Float_t> *rechit_y         = 0;
+      vector<Float_t> *rechit_z         = 0;
+      vector<Float_t> *rechit_thickness = 0;
+      vector<Float_t> *rechit_layer     = 0;
 
-  //read all entries and fill the histograms
-  Long64_t nentries = t->GetEntries();
-  Long64_t nmax = stoi(argv[3]);
-  Int_t nrun = TMath::Min(nentries, nmax);
+      vector<Float_t> *genpart_pt       = 0;
+      vector<Float_t> *genpart_eta      = 0;
+      vector<Float_t> *genpart_phi      = 0;
+      vector<Float_t> *genpart_energy   = 0;
+      vector<Float_t> *genpart_status   = 0;
+      vector<Float_t> *genpart_pdgid    = 0;
 
-  for (Long64_t i=0;i<nrun;i++) {
-    t->GetEntry(i);
+      t->SetBranchAddress("rechit_eta", &rechit_eta);
+      t->SetBranchAddress("rechit_phi", &rechit_phi);
+      t->SetBranchAddress("rechit_pt", &rechit_pt);
+      t->SetBranchAddress("rechit_energy", &rechit_energy);
+      t->SetBranchAddress("rechit_x", &rechit_x);
+      t->SetBranchAddress("rechit_y", &rechit_y);
+      t->SetBranchAddress("rechit_z", &rechit_z);
+      if(runType == "CMS")t->SetBranchAddress("rechit_thickness", &rechit_thickness);
+      t->SetBranchAddress("rechit_layer", &rechit_layer);
 
-    cout<<" ---- processing event : "<<i<<endl;
+      t->SetBranchAddress("gen_eta", &genpart_eta);
+      t->SetBranchAddress("gen_phi", &genpart_phi);
+      t->SetBranchAddress("gen_pt", &genpart_pt);
+      t->SetBranchAddress("gen_energy", &genpart_energy);
+      t->SetBranchAddress("gen_status", &genpart_status);
+      t->SetBranchAddress("gen_pdgid", &genpart_pdgid);
 
-    // ---  prepare genparts
-    GenParticleCollection genparts;
-    unsigned genpart_size = genpart_pt->size();
+      // calibration 
+      RecHitCalibration recHitCalibration;
 
-    for (unsigned i = 0; i < genpart_size; i++) {
-       // initialize genpart
-       genpart_p4.SetPtEtaPhiE(genpart_pt->at(i), genpart_eta->at(i), genpart_phi->at(i), genpart_energy->at(i));
-       GenParticle *genpart = genparts.AddGenParticle(genpart_p4, genpart_pdgid->at(i), genpart_status->at(i));
-    }
+      // generic declarations
+      TLorentzVector rechit_p4, rechit_pos;
+      TLorentzVector genpart_p4;
 
-    GenParticleCollection clean_genparts;
-    for (unsigned i = 0; i < genparts.size(); i++) {
-        GenParticle *g = genparts.at(i);
-        if (!g->isClusterable()) continue;
-        clean_genparts.Add(new GenParticle(*g));
-    }
+      //read all entries and fill the histograms
+      Long64_t nentries = t->GetEntries();
+      Long64_t nmax = stoi(argv[3]);
+      Int_t nrun = TMath::Min(nentries, nmax);
 
-    // ---  prepare rechits ----------------------------------------------
+      for (Long64_t i=0;i<nrun;i++) {
+	t->GetEntry(i);
+
+	cout<<" ---- processing event : "<<i<<endl;
+
+	// ---  prepare genparts
+	GenParticleCollection genparts;
+	unsigned genpart_size = genpart_pt->size();
+
+	for (unsigned i = 0; i < genpart_size; i++) {
+	  // initialize genpart
+	  genpart_p4.SetPtEtaPhiE(genpart_pt->at(i), genpart_eta->at(i), genpart_phi->at(i), genpart_energy->at(i));
+	  GenParticle *genpart = genparts.AddGenParticle(genpart_p4, genpart_pdgid->at(i), genpart_status->at(i));
+	}
+
+	GenParticleCollection clean_genparts;
+	for (unsigned i = 0; i < genparts.size(); i++) {
+	  GenParticle *g = genparts.at(i);
+	  if (!g->isClusterable()) continue;
+	  clean_genparts.Add(new GenParticle(*g));
+	}
+
+	// ---  prepare rechits ----------------------------------------------
     
-    RecHitCollection rechits;
-    unsigned rechit_size = rechit_pt->size();
-    for (unsigned i = 0; i < rechit_size; i++) {
-    //for (unsigned i = 0; i < 1000; i++) {
-       // initialize rechit
-       rechit_p4.SetPtEtaPhiE(rechit_pt->at(i), rechit_eta->at(i), rechit_phi->at(i), rechit_energy->at(i));
-       rechit_pos.SetXYZT(rechit_x->at(i), rechit_y->at(i), rechit_z->at(i), 0.0);
-       RecHit *rechit = rechits.AddRecHit(rechit_p4, rechit_pos, rechit_layer->at(i));
+	RecHitCollection rechits;
+	unsigned rechit_size = rechit_pt->size();
+	for (unsigned i = 0; i < rechit_size; i++) {
+	  //for (unsigned i = 0; i < 1000; i++) {
+	  // initialize rechit
+	  rechit_p4.SetPtEtaPhiE(rechit_pt->at(i), rechit_eta->at(i), rechit_phi->at(i), rechit_energy->at(i));
+	  rechit_pos.SetXYZT(rechit_x->at(i), rechit_y->at(i), rechit_z->at(i), 0.0);
+	  RecHit *rechit = rechits.AddRecHit(rechit_p4, rechit_pos, rechit_layer->at(i));
        
-       // apply some rechit filtering if this is CMS HGCAL run
-       if(runType == "CMS"){
-          rechit->setThickness(rechit_thickness->at(i));
-       }
-    }
+	  // apply some rechit filtering if this is CMS HGCAL run
+	  if(runType == "CMS"){
+	    rechit->setThickness(rechit_thickness->at(i));
+	  }
+	}
     
-    if(debug) cout<<"rechit size: "<<rechits.size()<<endl;
-    RecHitCollection clean_rechits;
-    if(runType == "CMS"){
-       computePuOffset(rechits);
+	if(debug) cout<<"rechit size: "<<rechits.size()<<endl;
+	RecHitCollection clean_rechits;
+	if(runType == "CMS"){
+	  computePuOffset(rechits);
 
-       for (unsigned i = 0; i < rechits.size(); i++) {
-           RecHit *r = rechits.at(i);
-           if (!r->isAboveThreshold(recHitCalibration, 5.0)) continue;
-           if (!r->isAbovePuNoise()) continue;
-           clean_rechits.Add(new RecHit(*r));
-        }
+	  for (unsigned i = 0; i < rechits.size(); i++) {
+	    RecHit *r = rechits.at(i);
+	    if (!r->isAboveThreshold(recHitCalibration, 5.0)) continue;
+	    if (!r->isAbovePuNoise()) continue;
+	    clean_rechits.Add(new RecHit(*r));
+	  }
+	}
+	else {
+	  for (unsigned i = 0; i < rechits.size(); i++) {
+	    RecHit *r = rechits.at(i);
+	    clean_rechits.Add(new RecHit(*r));
+	  }
+	}
+	if(debug) cout<<"clean rechit size: "<<clean_rechits.size()<<endl;
+    
+    
+	// ---------- Produce jets ------------------------------------------------
+    
+	// declare jet collections
+	JetCollection genjets;
+	JetCollection recojets;
+    
+	// produce jet collections (anti-kT R = 0.4)
+	bool doSubstructure  = false;
+	bool doPuSubtraction = false;
+    
+	selection cuts;
+	cuts.ptmin  = 2.5;
+	cuts.ptmax  = 5000.;
+	cuts.absetamin = 0.0;
+	cuts.absetamax = 1.3;
+    
+	produceJets(clean_genparts, genjets, 0.4, cuts, false, doSubstructure);
+	produceJets(clean_rechits, recojets, 0.4, cuts, false, doSubstructure);
+
+	// match reco to gen (need this in order to make resolution plots)
+	matchJets(genjets, recojets, 0.4);
+
+	if (debug) { 
+	  cout<<" ------  gen jets ------"<<endl;
+	  printJets(genjets);
+	  cout<<" ------  reco jets ------ "<<endl;
+	  printJets(recojets);
+	}
+
+	// fill plots
+    
+	gen_plots.fill(genjets);
+	reco_plots.fill(recojets);
+    
+      } // end event loop
     }
     else {
-       for (unsigned i = 0; i < rechits.size(); i++) {
-           RecHit *r = rechits.at(i);
-           clean_rechits.Add(new RecHit(*r));
-       }
+      cout<<" ------ file is sompromised --> not used  ------"<<endl;
     }
-    if(debug) cout<<"clean rechit size: "<<clean_rechits.size()<<endl;
-    
-    
-    // ---------- Produce jets ------------------------------------------------
-    
-    // declare jet collections
-    JetCollection genjets;
-    JetCollection recojets;
-    
-    // produce jet collections (anti-kT R = 0.4)
-    bool doSubstructure  = false;
-    bool doPuSubtraction = false;
-    
-    selection cuts;
-    cuts.ptmin  = 2.5;
-    cuts.ptmax  = 5000.;
-    cuts.absetamin = 0.0;
-    cuts.absetamax = 1.3;
-    
-    produceJets(clean_genparts, genjets, 0.4, cuts, false, doSubstructure);
-    produceJets(clean_rechits, recojets, 0.4, cuts, doPuSubtraction, doSubstructure);
-
-    // match reco to gen (need this in order to make resolution plots)
-    matchJets(genjets, recojets, 0.4);
-
-    if (debug) { 
-        cout<<" ------  gen jets ------"<<endl;
-        printJets(genjets);
-        cout<<" ------  reco jets ------ "<<endl;
-        printJets(recojets);
-    }
-
-    // fill plots
-    
-    gen_plots.fill(genjets);
-    reco_plots.fill(recojets);
-    
-  } // end event loop
-  
+  //} // end of loop over files
   //store plots in output file
   TFile outfile(argv[2],"RECREATE");
   
@@ -253,48 +279,48 @@ int main(int argc, char* argv[]){
 //------------------------------------------------------------------------------------------------------
 void computePuOffset(RecHitCollection& rechits) {
    
-   const int nLayers = 53;
-   const int etaSlices = 5;
-   const float etamin = 1.479;
-   const float etamax = 3.;
-   float step = float((etamax - etamin)/etaSlices);
+  const int nLayers = 53;
+  const int etaSlices = 5;
+  const float etamin = 1.479;
+  const float etamax = 3.;
+  float step = float((etamax - etamin)/etaSlices);
    
-   vector<double> layer_energy_vector[nLayers][etaSlices]; 
+  vector<double> layer_energy_vector[nLayers][etaSlices]; 
    
-   for (unsigned i = 0; i < rechits.size(); i++) {
-       for (unsigned j = 0; j < etaSlices; j++) {
-           float eta1 = etamin + float(j)*step;
-           float eta2 = etamin + float(j+1)*step;
-           RecHit *r = rechits.at(i);
-           if (fabs(r->eta()) < eta2 && fabs(r->eta()) > eta1 )
-               layer_energy_vector[r->layer()][j].push_back(r->energy());
-       }
-   }
+  for (unsigned i = 0; i < rechits.size(); i++) {
+    for (unsigned j = 0; j < etaSlices; j++) {
+      float eta1 = etamin + float(j)*step;
+      float eta2 = etamin + float(j+1)*step;
+      RecHit *r = rechits.at(i);
+      if (fabs(r->eta()) < eta2 && fabs(r->eta()) > eta1 )
+	layer_energy_vector[r->layer()][j].push_back(r->energy());
+    }
+  }
 
-   // now compute median for each layer
-   double medians[nLayers][etaSlices]; 
-   for (unsigned i = 0; i < nLayers ; i++) { 
-       for (unsigned j = 0; j < etaSlices; j++) {
-           size_t size = layer_energy_vector[i][j].size();
-           sort(layer_energy_vector[i][j].begin(), layer_energy_vector[i][j].end());
-           double median = 0;
-           if (size > 0){
-               if (size  % 2 == 0) median = (layer_energy_vector[i][j][size / 2 - 1] + layer_energy_vector[i][j][size / 2]) / 2;
-               else median = layer_energy_vector[i][j][size / 2];
-           }
-           medians[i][j] = median;
-       }
-   }
+  // now compute median for each layer
+  double medians[nLayers][etaSlices]; 
+  for (unsigned i = 0; i < nLayers ; i++) { 
+    for (unsigned j = 0; j < etaSlices; j++) {
+      size_t size = layer_energy_vector[i][j].size();
+      sort(layer_energy_vector[i][j].begin(), layer_energy_vector[i][j].end());
+      double median = 0;
+      if (size > 0){
+	if (size  % 2 == 0) median = (layer_energy_vector[i][j][size / 2 - 1] + layer_energy_vector[i][j][size / 2]) / 2;
+	else median = layer_energy_vector[i][j][size / 2];
+      }
+      medians[i][j] = median;
+    }
+  }
 
-   for (unsigned i = 0; i < rechits.size(); i++) {
-       for (unsigned j = 0; j < etaSlices; j++) {
-           float eta1 = etamin + float(j)*step;
-           float eta2 = etamin + float(j+1)*step;
-           RecHit *r = rechits.at(i);
-           if (fabs(r->eta()) < eta2 && fabs(r->eta()) > eta1 )
-              r->setPuOffset(medians[r->layer()][j]);
-       }
-   }
+  for (unsigned i = 0; i < rechits.size(); i++) {
+    for (unsigned j = 0; j < etaSlices; j++) {
+      float eta1 = etamin + float(j)*step;
+      float eta2 = etamin + float(j+1)*step;
+      RecHit *r = rechits.at(i);
+      if (fabs(r->eta()) < eta2 && fabs(r->eta()) > eta1 )
+	r->setPuOffset(medians[r->layer()][j]);
+    }
+  }
 }
 
 
@@ -302,99 +328,99 @@ void computePuOffset(RecHitCollection& rechits) {
 template <class Collection>
 void produceJets(Collection& constituents, JetCollection& jets, const float& r, const selection cuts, const bool doPuSubtraction = false, const bool doSubstructure = false) {
       
-   // first convert constituents into fastjet pseudo-jets
-   vector <PseudoJet> input_particles;
-   for (unsigned i = 0; i < constituents.size(); i++) {
-      //Constituent pj = constituents.at(i);
-      input_particles.push_back( PseudoJet( constituents.at(i)->px(), constituents.at(i)->py(), constituents.at(i)->pz(), constituents.at(i)->energy()));
-   }
+  // first convert constituents into fastjet pseudo-jets
+  vector <PseudoJet> input_particles;
+  for (unsigned i = 0; i < constituents.size(); i++) {
+    //Constituent pj = constituents.at(i);
+    input_particles.push_back( PseudoJet( constituents.at(i)->px(), constituents.at(i)->py(), constituents.at(i)->pz(), constituents.at(i)->energy()));
+  }
    
-   // Initial clustering with anti-kt algorithm
-   JetAlgorithm algorithm = antikt_algorithm;
-   double jet_rad = r; // jet radius for anti-kt algorithm
-   JetDefinition jetDef = JetDefinition(algorithm,jet_rad,E_scheme,Best);
+  // Initial clustering with anti-kt algorithm
+  JetAlgorithm algorithm = antikt_algorithm;
+  double jet_rad = r; // jet radius for anti-kt algorithm
+  JetDefinition jetDef = JetDefinition(algorithm,jet_rad,E_scheme,Best);
    
-   vector<PseudoJet> akjets;
+  vector<PseudoJet> akjets;
    
-   Selector select_eta   = SelectorAbsEtaRange(cuts.absetamin, cuts.absetamax);
-   Selector select_pt    = SelectorPtRange(cuts.ptmin, cuts.ptmax);
-   Selector select_jets  = select_eta && select_pt;
+  Selector select_eta   = SelectorAbsEtaRange(cuts.absetamin, cuts.absetamax);
+  Selector select_pt    = SelectorPtRange(cuts.ptmin, cuts.ptmax);
+  Selector select_jets  = select_eta && select_pt;
    
-   if(doPuSubtraction) {
+  if(doPuSubtraction) {
        
-       // jet area correction parameters, are used only if doPU = true
-       float etamin = 0;
-       float etamax = 2.5;
-       float spacing = 0.50;
-       Selector selector = SelectorAbsRapRange(etamin, etamax);
+    // jet area correction parameters, are used only if doPU = true
+    float etamin = 0;
+    float etamax = 2.5;
+    float spacing = 0.50;
+    Selector selector = SelectorAbsRapRange(etamin, etamax);
 
-       AreaDefinition areaDef(active_area, GhostedAreaSpec(selector));
-       ClusterSequenceArea clust_seq(input_particles,jetDef, areaDef);
+    AreaDefinition areaDef(active_area, GhostedAreaSpec(selector));
+    ClusterSequenceArea clust_seq(input_particles,jetDef, areaDef);
        
-       vector<PseudoJet> antikt_jets  = clust_seq.inclusive_jets();
+    vector<PseudoJet> antikt_jets  = clust_seq.inclusive_jets();
 
-       // now apply PU subtraction
-       RectangularGrid grid(-etamax, etamax, spacing, spacing, selector);
-       GridMedianBackgroundEstimator gmbge(grid);
-       gmbge.set_particles(input_particles);
-       Subtractor subtractor(&gmbge);
-       akjets = subtractor(antikt_jets);
+    // now apply PU subtraction
+    RectangularGrid grid(-etamax, etamax, spacing, spacing, selector);
+    GridMedianBackgroundEstimator gmbge(grid);
+    gmbge.set_particles(input_particles);
+    Subtractor subtractor(&gmbge);
+    akjets = subtractor(antikt_jets);
        
-       // apply cuts
-       akjets = select_jets(sorted_by_pt(akjets));
+    // apply cuts
+    akjets = select_jets(sorted_by_pt(akjets));
        
-       // eventually apply substructure and store in custom dataformat
-       convertJets(clust_seq, akjets, r, jets, doSubstructure);
+    // eventually apply substructure and store in custom dataformat
+    convertJets(clust_seq, akjets, r, jets, doSubstructure);
 
-       // soft killer PU (could be used later)
+    // soft killer PU (could be used later)
 
-       /*double grid_size = 0.4;
-       SoftKiller soft_killer(-3.0, 3.0, grid_size, grid_size) ;
-       double pt_threshold;
-       vector<PseudoJet> soft_killed_event;
-       soft_killer.apply(input_particles, soft_killed_event, pt_threshold);
+    /*double grid_size = 0.4;
+      SoftKiller soft_killer(-3.0, 3.0, grid_size, grid_size) ;
+      double pt_threshold;
+      vector<PseudoJet> soft_killed_event;
+      soft_killer.apply(input_particles, soft_killed_event, pt_threshold);
 
-       ClusterSequence clust_seq_kill(soft_killed_event, jetDef);  
-       vector<PseudoJet> kill_jets = clust_seq_kill.inclusive_jets();
+      ClusterSequence clust_seq_kill(soft_killed_event, jetDef);  
+      vector<PseudoJet> kill_jets = clust_seq_kill.inclusive_jets();
 
-       kill_jets = sel_jets(kill_jets);
+      kill_jets = sel_jets(kill_jets);
 
-       if(debug) cout << setprecision(4);
-       if(debug) cout << "Soft Killer applied a pt threshold of " << pt_threshold << endl;
+      if(debug) cout << setprecision(4);
+      if(debug) cout << "Soft Killer applied a pt threshold of " << pt_threshold << endl;
 
-       // run things and print the result
-       //----------------------------------------------------------
-       if(debug) cout << "# original hard jets" << endl;
-       for (unsigned int i=0; i<antikt_jets.size(); i++){
-         const PseudoJet &jet = antikt_jets[i];
-         if(debug) cout << "pt = " << jet.pt()
-              << ", rap = " << jet.rap()
-              << ", mass = " << jet.m() << endl;
-       }
-       if(debug) cout << endl;
+      // run things and print the result
+      //----------------------------------------------------------
+      if(debug) cout << "# original hard jets" << endl;
+      for (unsigned int i=0; i<antikt_jets.size(); i++){
+      const PseudoJet &jet = antikt_jets[i];
+      if(debug) cout << "pt = " << jet.pt()
+      << ", rap = " << jet.rap()
+      << ", mass = " << jet.m() << endl;
+      }
+      if(debug) cout << endl;
 
-       if(debug) cout << "# jets after applying the soft killer" << endl;
-       for (unsigned int i=0; i<kill_jets.size(); i++){
-         const PseudoJet &jet = kill_jets[i];
-         if(debug) cout << "pt = " << jet.pt()
-              << ", rap = " << jet.rap()
-              << ", mass = " << jet.m() << endl;
-       }
-       if(debug) cout << endl;
-       }
-       */
-   }
-   else {
+      if(debug) cout << "# jets after applying the soft killer" << endl;
+      for (unsigned int i=0; i<kill_jets.size(); i++){
+      const PseudoJet &jet = kill_jets[i];
+      if(debug) cout << "pt = " << jet.pt()
+      << ", rap = " << jet.rap()
+      << ", mass = " << jet.m() << endl;
+      }
+      if(debug) cout << endl;
+      }
+    */
+  }
+  else {
        
-       ClusterSequence clust_seq(input_particles,jetDef);
-       akjets  = sorted_by_pt(clust_seq.inclusive_jets());
+    ClusterSequence clust_seq(input_particles,jetDef);
+    akjets  = sorted_by_pt(clust_seq.inclusive_jets());
 
-       // apply cuts
-       akjets = select_jets(akjets);
+    // apply cuts
+    akjets = select_jets(akjets);
 
-       // eventually apply substructure and store in custom dataformat
-       convertJets(clust_seq, akjets, r, jets, doSubstructure);
-   }
+    // eventually apply substructure and store in custom dataformat
+    convertJets(clust_seq, akjets, r, jets, doSubstructure);
+  }
    
 }
 
@@ -404,79 +430,108 @@ void produceJets(Collection& constituents, JetCollection& jets, const float& r, 
 template <class Sequence>
 void convertJets(Sequence seq, vector<PseudoJet> pseudojets, const float& r, JetCollection& jets, const bool doSubstructure = false){
 
-   TLorentzVector p4;
-   for (unsigned j = 0; j < pseudojets.size() ; j++) { 
+  TLorentzVector p4;
+  for (unsigned j = 0; j < pseudojets.size() ; j++) { 
 
-       // get the jet for analysis
-       PseudoJet this_jet = pseudojets[j];
+    // get the jet for analysis
+    PseudoJet this_jet = pseudojets[j];
 
-       p4.SetPtEtaPhiM(this_jet.pt(), this_jet.eta(), this_jet.phi(), std::max(this_jet.m(),0.0));
-       Jet jet(p4);
+    p4.SetPtEtaPhiM(this_jet.pt(), this_jet.eta(), this_jet.phi(), std::max(this_jet.m(),0.0));
+    Jet jet(p4);
 
-       if (doSubstructure) {
+    if (doSubstructure) {
        
-           // N-subjettiness
-           double beta = 1.0;
+      // N-subjettiness
+      double beta = 1.0;
 
-           Nsubjettiness         nSub1_beta1(1,   OnePass_KT_Axes(), NormalizedMeasure(beta, r));
-           Nsubjettiness         nSub2_beta1(2,   OnePass_KT_Axes(), NormalizedMeasure(beta, r));
-           Nsubjettiness         nSub3_beta1(3,   OnePass_KT_Axes(), NormalizedMeasure(beta, r));
-           NsubjettinessRatio    nSub21_beta1(2,1, OnePass_KT_Axes(), NormalizedMeasure(beta, r));
-           NsubjettinessRatio    nSub32_beta1(3,2, OnePass_KT_Axes(), NormalizedMeasure(beta, r));
+      Nsubjettiness         nSub1_beta1(1,   OnePass_KT_Axes(), NormalizedMeasure(beta, r));
+      Nsubjettiness         nSub2_beta1(2,   OnePass_KT_Axes(), NormalizedMeasure(beta, r));
+      Nsubjettiness         nSub3_beta1(3,   OnePass_KT_Axes(), NormalizedMeasure(beta, r));
+      NsubjettinessRatio    nSub21_beta1(2,1, OnePass_KT_Axes(), NormalizedMeasure(beta, r));
+      NsubjettinessRatio    nSub32_beta1(3,2, OnePass_KT_Axes(), NormalizedMeasure(beta, r));
 
-           jet.setTau1(nSub1_beta1(this_jet));
-           jet.setTau2(nSub2_beta1(this_jet));
-           jet.setTau3(nSub3_beta1(this_jet));
-           jet.setTau21(nSub21_beta1(this_jet));
-           jet.setTau32(nSub32_beta1(this_jet));
+      jet.setTau1(nSub1_beta1(this_jet));
+      jet.setTau2(nSub2_beta1(this_jet));
+      jet.setTau3(nSub3_beta1(this_jet));
+      jet.setTau21(nSub21_beta1(this_jet));
+      jet.setTau32(nSub32_beta1(this_jet));
 
-           // soft drop
-           beta = 0.0;
-           double zcut = 0.1;
-           SoftDrop softDrop(beta,zcut);
-           PseudoJet softdrop_jet = softDrop(this_jet);
-           p4.SetPtEtaPhiM(softdrop_jet.pt(), softdrop_jet.eta(), softdrop_jet.phi(), std::max(softdrop_jet.m(),0.0));
-           jet.setSDmass(p4.M());
+      // soft drop
+      beta = 0.0;
+      double zcut = 0.1;
+      SoftDrop softDrop(beta,zcut);
+      PseudoJet softdrop_jet = softDrop(this_jet);
+      p4.SetPtEtaPhiM(softdrop_jet.pt(), softdrop_jet.eta(), softdrop_jet.phi(), std::max(softdrop_jet.m(),0.0));
+      jet.setSDmass(p4.M());
 
-           // store jet in collection
-       }
+      // store jet in collection
+    }
        
-       jets.Add(new Jet(jet));
-   }   
+    jets.Add(new Jet(jet));
+  }   
 }
 
 
 //------------------------------------------------------------------------------------------------------
 void matchJets(JetCollection& genjets, JetCollection& recojets, float dr){
 
-    for (unsigned i = 0; i < genjets.size() ; i++) { 
-       float dr0 = 999.;
-       Jet *gj = genjets.at(i);
-       // will be best matching recojet
-       Jet *rj0; 
-       for (unsigned j = 0; j < recojets.size() ; j++) { 
-          Jet *rj = recojets.at(j);
-          float dr_gr = rj->p4().DeltaR(gj->p4());
-          if( dr_gr < dr0 ){
-             rj0 = rj;
-             dr0 = dr_gr;
-          } 
-       }
-       // assign genjet ref. to best matching recojet (and vice versa)
-       if (dr0 < dr){ 
-         rj0->setRef(gj);
-         gj->setRef(rj0);
-       }
+  for (unsigned i = 0; i < genjets.size() ; i++) { 
+    float dr0 = 999.;
+    Jet *gj = genjets.at(i);
+    // will be best matching recojet
+    Jet *rj0; 
+    for (unsigned j = 0; j < recojets.size() ; j++) { 
+      Jet *rj = recojets.at(j);
+      float dr_gr = rj->p4().DeltaR(gj->p4());
+      if( dr_gr < dr0 ){
+	rj0 = rj;
+	dr0 = dr_gr;
+      } 
     }
+    // assign genjet ref. to best matching recojet (and vice versa)
+    if (dr0 < dr){ 
+      rj0->setRef(gj);
+      gj->setRef(rj0);
+    }
+  }
 }
 
 //------------------------------------------------------------------------------------------------------
 void printJets(JetCollection& jets){
-    cout<<" -- Print Jet collection -- "<<endl; 
-    for (unsigned j = 0; j < jets.size() ; j++){
-       jets.at(j)->print();
-       if(jets.at(j)->ref()) {
-           (jets.at(j)->ref())->print();
-       }
+  cout<<" -- Print Jet collection -- "<<endl; 
+  for (unsigned j = 0; j < jets.size() ; j++){
+    jets.at(j)->print();
+    if(jets.at(j)->ref()) {
+      (jets.at(j)->ref())->print();
     }
+  }
 }
+
+//------------------------------------------------------------------------------------------------------
+//JetCollection sumOverCone(JetCollection& recojets, RecHitCollection& recHits,floar dr){
+//
+//  JetCollection newjets;
+//  
+//  for (unsigned i = 0; i < genjets.size() ; i++) { 
+//    Jet *rj = recojets.at(i);
+//    Jet newjet;
+//    vector<float> eta;
+//    vector<float> phi;
+//    vector<float> pt;
+//    vector<float> energy;
+//    vector<float> px;
+//    vector<float> py;
+//    vector<float> pz;
+//    vector<float> mass;
+//    TLorentzVector p4; // use SetPtEtaPhiE
+//    // sums up all reHits aroud DeltaR=0.4
+//    for (unsigned j = 0; j < recHits.size() ; j++) { 
+//      RecHit *hit = recHits.at(j);
+//      float dr_gh = hit->p4().DeltaR(rj->p4());
+//      if( dr_gr < dr ){
+//	// Add hit to new jet
+//      } 
+//    }
+//  }
+//  return ; // new jet collection
+//}
