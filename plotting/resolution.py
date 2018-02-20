@@ -325,7 +325,9 @@ for i, pt in enumerate(ptbins):
     print ''
 
     mus[key]  = (fit.GetParameter(1), fit.GetParError(1))
-    sigs[key] = (fit.GetParameter(2)*100 / fit.GetParameter(1), fit.GetParError(2)*100 / fit.GetParameter(1))
+    reso = fit.GetParameter(2)*100 / fit.GetParameter(1)
+    err = 1/fit.GetParameter(1) * TMath.Sqrt(TMath.Power(fit.GetParError(2),2)+TMath.Power(fit.GetParError(1)*reso,2)) * 100
+    sigs[key] = (reso, err)
 
     print 'mu  = ', '{0:.2f} +/- {1:.2f}'.format(mus[key][0], mus[key][1])
     print 'res = ', '{0:.2f} +/- {1:.2f}'.format(sigs[key][0], sigs[key][1])
