@@ -25,6 +25,10 @@ def main():
                        dest='njobs',
                        default='10')
 
+    parser.add_option("--algorithm", help="choose algorithm : antiKt, antiKt_cluster, or simpleCone",
+                      dest="algorithm",
+                      default='antiKt')
+
     parser.add_option("-c","--collect", help="collects jobs for given algorithm",
 		      dest="collect", 
 		      default='')
@@ -37,9 +41,13 @@ def main():
 		      dest="allPts", action="store_true", 
 		      default=False)
 
+    parser.add_option("-t","--topoCluster", help="topoCluster for jet building",
+                      dest="topoCluster", action="store_true",
+                      default=False)
+
     (options, args) = parser.parse_args()
     input_dir     = options.input
-    output_dir    = options.output
+    output_dir    = '/eos/experiment/fcc/users/c/cneubuse/JetClustering/'+options.algorithm+'/'+options.output
     max_events    = int(options.nev)
     queue         = options.queue
     collect       = options.collect
@@ -48,16 +56,16 @@ def main():
         en = int(options.collectPt)
         print 'Collecting jobs for process: '+str(collect)
         input_dir = '/eos/experiment/fcc/users/c/cneubuse/JetClustering/'
+        # /eos/experiment/fcc/users/c/cneubuse/JetClustering/antiKt/200GeVljets/out/
         print 'Find files in ', input_dir+collect+'/'+str(en)+'GeVljets'
         hadd_dir = input_dir+collect+'/'+str(en)+'GeVljets/out/'
         basename = input_dir+collect+'/'+str(en)+'GeVljets'
         basename = os.path.basename(basename)
+        print basename
         outfile = hadd_dir + basename + '.root'
         hadd_files = hadd_dir + basename + '_*.root'
         cmd ='hadd -f '+ outfile + ' ' + hadd_files
         os.system(cmd)
-       #cmd = 'rm -rf '+hadd_files+' '+output_dir+'/std'
-       #os.system(cmd)
         sys.exit('Collection of jobs done.')
        
     if collect and options.allPts:
@@ -81,7 +89,10 @@ def main():
        sys.exit('Output dir: "'+output_dir+'" exists.')
 
     # find list of input files
-    cmd = "find {0} -type f -name '*.root'".format(options.input)
+    if options.topoCluster:
+        cmd = "find {0} -type f -name '*_ntuple.root'".format(options.input)
+    else :
+        cmd = "find {0} -type f -name '*.root'".format(options.input)
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
     lst = process.communicate()[0]
     list_of_files = lst.splitlines()
@@ -92,8 +103,11 @@ def main():
 
     for job in xrange(njobs):
        
-       basename = output_dir + '_'+str(job)
+       print "output dir  : ", options.output
+       print "output base : ", os.path.basename(options.output)
+       basename = options.output + '_'+str(job)
        basename = os.path.basename(basename)
+       print "output name : ",basename
        currentDir = os.getcwd()
        inputFile = list_of_files[job]
        

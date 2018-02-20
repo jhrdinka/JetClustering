@@ -37,11 +37,14 @@ e.g:
 
 The script ```batch/submitJetClustering.py``` allows to run this script on LSF queues.
 Choose a new output directory, in which one out/ and std/ will be build.
-
+Specify algorithm: "antiKt", "antiKt_cluster" or "simpleCone" and if input are cluster add: -t
 ```
 python batch/submitJetClustering.py -i [NTUP_dir] -n [nevts_per_job] -o [output_dir] --njobs [number_of_jobs] -q [queue]
 ```
-
+example:
+``
+ python submitJetClustering.py -i /eos/experiment/fcc/hh/simulation/samples/v02_pre/physics/ljets/bFieldOn/etaTo1.5/20GeV/reco/topoClusters/ -n 100 --algorithm antiKt_cluster -o 20GeVljets --njobs 166 -q 8nh -t
+``
 Jobs will be collected for certain jet alorithm and pt, in directory /eos/experiment/fcc/users/c/cneubuse/JetClustering/:
 
 ```

@@ -1,7 +1,7 @@
 import ROOT
 import sys
 import os
-from ROOT import TFile, TH1F, TGraphErrors, TMultiGraph, TLegend, TF1, gROOT
+from ROOT import TFile, TH1F, TGraphErrors, TMultiGraph, TLegend, TF1, gROOT, TStyle, gStyle
 
 c = ROOT.TCanvas("", "", 600, 600) 
 ROOT.gROOT.SetBatch(True)
@@ -74,15 +74,22 @@ def myStyle():
 def printResoHisto(histo,f, pt, eta, r, pu):
     print 'draw histogram with name: ',histo.GetName() 
     ROOT.gStyle.SetOptFit(1)
+    ROOT.gStyle.SetStatY(0.9)
+    ROOT.gStyle.SetStatX(0.9)
+    ROOT.gStyle.SetStatW(0.22)
+    ROOT.gStyle.SetStatH(0.12)
+    
     c = ROOT.TCanvas(histo.GetName(), "", 600, 600)
     ROOT.gPad.SetLeftMargin(0.20) ; 
     ROOT.gPad.SetRightMargin(0.05) ; 
     ROOT.gPad.SetBottomMargin(0.20) ; 
-    ROOT.gStyle.SetOptStat(0000000);
     ROOT.gStyle.SetTextFont(132);
     ROOT.gStyle.SetOptStat(0000000)
     c.cd()
-    histo.SetLineWidth(3)
+    histo.SetMarkerStyle(20)
+    histo.SetMarkerSize(1)
+    histo.SetLineWidth(2)
+    histo.SetLineColor(1)
     histo.Draw()
     f.SetLineWidth(3)
     f.Draw('same')
@@ -110,6 +117,7 @@ def printResoHisto(histo,f, pt, eta, r, pu):
    
     ptext = ROOT.TPaveText(0.21,0.62,0.50,.87)
     ptext.AddText("{0} pile-up".format(pu))
+    ptext.AddText("cell level")
     ptext.AddText("anti-k_{{T}}, R = {0}".format(r))
     ptext.AddText('{0} < |#eta| < {1} '.format(eta[0], eta[1]))
     ptext.AddText("p_{{T}} = {0} GeV".format(pt))
@@ -127,8 +135,8 @@ def printResoHisto(histo,f, pt, eta, r, pu):
     Tleft.SetNDC(ROOT.kTRUE) 
     Tleft.SetTextSize(0.044) 
     Tleft.SetTextFont(132) '''
-    
-    ps = histo.FindObject('stats')
+
+    #ps = histo.GetListOfFunctions().FindObject("stats")
     #ps.SetX1NDC(0.60)
     #ps.SetX2NDC(0.95)
     #ps.SetY1NDC(0.70)
@@ -137,15 +145,15 @@ def printResoHisto(histo,f, pt, eta, r, pu):
     c.Update()
     
     histo.GetXaxis().SetTitle('p_{T}^{reco} / p_{T}^{gen}')
-    
-    basename = os.path.basename(histo.GetName())
+
+    basename = os.path.basename(hist.GetName())
     if not os.path.exists('plots'):
         os.makedirs('plots')
     plotname = 'plots/'+basename+'.png'
     print plotname
 
     c.Print(plotname)
-        
+
 #_____________________________________________________________________________________________________
 def drawMultiGraph(mg, name, lt, rt, pdir, xmin, xmax, ymin, ymax, logx, logy, bl, f):
     #myStyle()
@@ -232,8 +240,8 @@ def drawMultiGraph(mg, name, lt, rt, pdir, xmin, xmax, ymin, ymax, logx, logy, b
 #    mg.GetHistogram().GetXaxis().SetLabelSize(0.06)
 #    mg.GetHistogram().GetYaxis().SetLabelSize(0.06)
 #    mg.GetHistogram().GetXaxis().SetRangeUser(xmin, xmax)
-#    mg.SetMinimum(ymin)
-#    mg.SetMaximum(ymax)
+    mg.SetMinimum(ymin)
+    mg.SetMaximum(ymax)
         
     
     if bl:
@@ -246,7 +254,7 @@ def drawMultiGraph(mg, name, lt, rt, pdir, xmin, xmax, ymin, ymax, logx, logy, b
     
     Tleft.Draw() 
     Tright.Draw() 
-#    mg.GetXaxis().SetRangeUser(xmin, xmax)
+#    mg.GetXaxis().SetLimits(xmin, xmax)
 
     canvas.Print('{0}/{1}.png'.format(pdir, name), 'png')
 
@@ -255,7 +263,7 @@ def drawMultiGraph(mg, name, lt, rt, pdir, xmin, xmax, ymin, ymax, logx, logy, b
 fileName = sys.argv[1]
 
 #ptvals = {10., 20., 30.,50., 75., 100., 150., 200., 300., 500., 750., 1000., 1500., 2000., 5000.};
-ptbins = [10., 20., 30., 50., 75., 100., 150., 200., 300., 500., 750., 1000., 1500., 2000., 5000., 7500.]
+ptbins = [10., 20., 30., 50., 75., 100., 150., 200., 300., 500., 750., 1000., 1500., 2000., 5000.]
 pts = [20,50,100,200,500,1000,2000]
 
 mus = dict()
@@ -319,27 +327,8 @@ for i, pt in enumerate(ptbins):
     mus[key]  = (fit.GetParameter(1), fit.GetParError(1))
     sigs[key] = (fit.GetParameter(2)*100 / fit.GetParameter(1), fit.GetParError(2)*100 / fit.GetParameter(1))
 
-## Check of gen particle pt
-#genhistname = 'gen/reso/gen_{0}_{1}'.format(int(ptbins[i]),int(ptbins[i+1]))
-#genhist = hfile.Get(genhistname)
-#genhisto = genhist.Clone()
-#genfname = '{0}'.format(genhistname)
-#genx0 = genhisto.GetXaxis().GetBinCenter(genhisto.GetMaximumBin())
-#gend = genhisto.GetRMS()
-## now perform gaussian fit in [x_max_sigm, x_max_sigp]                                                                                                                                                                                
-#genfit = ROOT.TF1(genfname, 'gaus',0.0, 2.0)
-#genhisto.SetName(genhistname)
-#
-#genhisto.Fit(genfname, 'Q', '', genx0 - s*gend, genx0 + s*gend)
-#printResoHisto(genhisto, genfit, pt, eta, r, pu)
-#
-
     print 'mu  = ', '{0:.2f} +/- {1:.2f}'.format(mus[key][0], mus[key][1])
     print 'res = ', '{0:.2f} +/- {1:.2f}'.format(sigs[key][0], sigs[key][1])
-#    print 'mean of genParticles = ',genhisto.GetMean()
-#    print 'mu   of genParticles = ',genfit.GetParameter(1)
-
-# sigs[25]= (20., 0.1)
 
 # now do multigraphs
 
@@ -348,6 +337,7 @@ rt = 'FCC-hh simulation'
 lt = []
 lt.append('#sqrt{s} = 100 TeV')
 lt.append('QCD (uds) jets')
+lt.append("cell level")
 lt.append("anti-k_{{T}}, R = {0}".format(r))
 lt.append("0 < |#eta| < 1.3".format(r))
 
@@ -358,7 +348,6 @@ mg_reso_pt.SetTitle(";p_{T} [GeV]; resolution (%)")
 
 mg_resp_pt = ROOT.TMultiGraph()
 mg_resp_pt.SetTitle(";p_{T} [GeV]; response")
-
 
 reso_pt = ROOT.TGraphErrors()
 reso_pt.SetLineColor(colors[0])
@@ -381,9 +370,9 @@ for i, pt in enumerate(ptbins):
     if i >= num:
         break
     
-    pt =  0.5*(ptbins[i]+ptbins[i+1])
-    key = pt
-    
+    key = 0.5*(ptbins[i]+ptbins[i+1])
+    pt = 1/mus[key][0] * key
+
     title = '{0} < |#eta| < {1} '.format(eta[0], eta[1])
     reso_pt.SetTitle(title)
     reso_pt.SetPoint(i,pt,sigs[key][0])
@@ -414,7 +403,7 @@ name_reso = '{0}_reso_pt_{1}_{2}pu'.format(basename,algo,pu)
 name_resp = '{0}_resp_pt_{1}_{2}pu'.format(basename,algo,pu)
 
 #raw_input ("Press Enter to continue.. ")
-drawMultiGraph(mg_reso_pt, name_reso, lt, rt, 'plots', 10, 5000., 0., 50., True, False, False, freso)   
+drawMultiGraph(mg_reso_pt, name_reso, lt, rt, 'plots', 10, 5000., 0., 40., True, False, False, freso)   
 freso = None
 drawMultiGraph(mg_resp_pt, name_resp, lt, rt, 'plots', 10., 5000., 0.5, 1.2, True, False, True, freso)   
 
