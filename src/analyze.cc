@@ -32,6 +32,8 @@
 #include "RecHit.hh"
 #include "RecHitCalibration.hh"
 #include "RecHitCollection.hh"
+#include "Cluster.hh"
+#include "ClusterCollection.hh"
 #include "GenParticle.hh"
 #include "GenParticleCollection.hh"
 #include "Jet.hh"
@@ -98,6 +100,14 @@ int main(int argc, char* argv[]){
   vector<Float_t> *rechit_thickness = 0;
   vector<Float_t> *rechit_layer     = 0;
 
+  vector<Float_t> *cluster_pt        = 0;
+  vector<Float_t> *cluster_eta       = 0;
+  vector<Float_t> *cluster_phi       = 0;
+  vector<Float_t> *cluster_energy    = 0;
+  vector<Float_t> *cluster_x         = 0;
+  vector<Float_t> *cluster_y         = 0;
+  vector<Float_t> *cluster_z         = 0;
+
   vector<Float_t> *genpart_pt       = 0;
   vector<Float_t> *genpart_eta      = 0;
   vector<Float_t> *genpart_phi      = 0;
@@ -115,6 +125,14 @@ int main(int argc, char* argv[]){
   if(runType == "CMS")t->SetBranchAddress("rechit_thickness", &rechit_thickness);
   t->SetBranchAddress("rechit_layer", &rechit_layer);
 
+  t->SetBranchAddress("cluster_eta",    &cluster_eta);
+  t->SetBranchAddress("cluster_phi",    &cluster_phi);
+  t->SetBranchAddress("cluster_pt",     &cluster_pt);
+  t->SetBranchAddress("cluster_energy", &cluster_energy);
+  t->SetBranchAddress("cluster_x",      &cluster_x);
+  t->SetBranchAddress("cluster_y",      &cluster_y);
+  t->SetBranchAddress("cluster_z",      &cluster_z);
+  
   t->SetBranchAddress("gen_eta", &genpart_eta);
   t->SetBranchAddress("gen_phi", &genpart_phi);
   t->SetBranchAddress("gen_pt", &genpart_pt);
@@ -124,7 +142,7 @@ int main(int argc, char* argv[]){
 
   // declare histograms
   vector<float> ptvals;
-  ptvals = {10., 20., 30.,50., 75., 100., 150., 200., 300., 500., 750., 1000., 1500., 2000., 5000.};
+  ptvals = {10., 20., 30.,50., 75., 100., 150., 200., 300., 500., 750., 1000., 1500., 2000., 3500., 5000., 7500., 10000., 15000., 20000.};
   
   JetPlots gen_plots  = JetPlots("gen", ptvals);
   JetPlots reco_plots = JetPlots("reco", ptvals);
@@ -134,6 +152,7 @@ int main(int argc, char* argv[]){
 
   // generic declarations
   TLorentzVector rechit_p4, rechit_pos;
+  TLorentzVector cluster_p4, cluster_pos;
   TLorentzVector genpart_p4;
 
   //read all entries and fill the histograms
@@ -200,7 +219,21 @@ int main(int argc, char* argv[]){
     }
     if(debug) cout<<"clean rechit size: "<<clean_rechits.size()<<endl;
     
-    
+    // ---  prepare clusters ----------------------------------------------                                                                                                                                                                    
+    ClusterCollection clusters;
+    // make sure the clusters are written in file
+    TString findCluster("cluster_pt");
+    TBranch* br = t->FindBranch(findCluster);
+    if (br){ 
+      unsigned cluster_size = cluster_pt->size();
+      for (unsigned i = 0; i < cluster_size; i++) {
+	// initialize cluster 
+	cluster_p4.SetPtEtaPhiE(cluster_pt->at(i), cluster_eta->at(i), cluster_phi->at(i), cluster_energy->at(i));
+	cluster_pos.SetXYZT(cluster_x->at(i), cluster_y->at(i), cluster_z->at(i), 0.0);
+	Cluster *cluster = clusters.AddCluster(cluster_p4, cluster_pos);
+      }
+      if(debug) cout<<"cluster size: "<<clusters.size()<<endl;
+    }
     // ---------- Produce jets ------------------------------------------------
     
     // declare jet collections
@@ -208,17 +241,20 @@ int main(int argc, char* argv[]){
     JetCollection recojets;
     
     // produce jet collections (anti-kT R = 0.4)
-    bool doSubstructure  = false;
+    bool doSubstructure  = true;
     bool doPuSubtraction = false;
     
     selection cuts;
     cuts.ptmin  = 2.5;
-    cuts.ptmax  = 5000.;
+    cuts.ptmax  = 20000.;
     cuts.absetamin = 0.0;
     cuts.absetamax = 1.3;
     
     produceJets(clean_genparts, genjets, 0.4, cuts, false, doSubstructure);
-    produceJets(clean_rechits, recojets, 0.4, cuts, doPuSubtraction, doSubstructure);
+    if (clean_rechits.size() > 0)
+      produceJets(clean_rechits, recojets, 0.4, cuts, doPuSubtraction, doSubstructure);
+    else if (clusters.size() > 0)
+      produceJets(clusters, recojets, 0.4, cuts, doPuSubtraction, doSubstructure);
 
     // match reco to gen (need this in order to make resolution plots)
     matchJets(genjets, recojets, 0.4);
