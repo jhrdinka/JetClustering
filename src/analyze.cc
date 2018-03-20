@@ -63,20 +63,21 @@ void produceJets(Collection& input_particles, JetCollection & jets, const float&
 
 template <class Sequence>
 void convertJets(Sequence seq, vector<PseudoJet> pseudojets, const float& r, JetCollection& jets, const bool doSubstructure = false);
+
 void matchJets(JetCollection& genjets, JetCollection& recojets, float dr);
 void printJets(JetCollection & jets);
 void computePuOffset(RecHitCollection& rechits);
-
+void sumOverCone(JetCollection& newjets, JetCollection& recojets, RecHitCollection& rechits,float dr);
 
 //----------------------------------------------------------------------
 int main(int argc, char* argv[]){
 
 
  // Check the number of parameters
-  if (argc < 5) {
-      // Tell the user how to run the program
-      std::cerr << "Usage: " << argv[0] << " [input.root] " << " [output.root] " <<" [Nevts] [CMS/FCC]" <<std::endl;
-      return 1;
+  if (argc < 6) {
+    // Tell the user how to run the program
+    std::cerr << "Usage: " << argv[0] << " [input.root] " << " [output.root] " <<" [Nevts] [CMS/FCC]" << " [checkJetCone] " << std::endl;
+    return 1;
   }
 
   TString runType = argv[4];
@@ -84,7 +85,8 @@ int main(int argc, char* argv[]){
      cerr << "Should specifiy CMS or FCC as last argument"<<endl;
      return 1;
   }
-  
+   
+  TString doConeCheck = argv[5];
   // ---   Tree stuff declarations
   
   TFile *f = new TFile(argv[1]);
@@ -142,7 +144,7 @@ int main(int argc, char* argv[]){
 
   // declare histograms
   vector<float> ptvals;
-  ptvals = {10., 20., 30.,50., 75., 100., 150., 200., 300., 500., 750., 1000., 1500., 2000., 3500., 5000., 7500., 10000., 15000., 20000.};
+  ptvals = {10., 20., 30.,50., 75., 100., 150., 200., 300., 500., 750., 1000., 1500., 2000., 3500., 5000., 7500., 15000.};
   
   JetPlots gen_plots  = JetPlots("gen", ptvals);
   JetPlots reco_plots = JetPlots("reco", ptvals);
@@ -256,9 +258,6 @@ int main(int argc, char* argv[]){
     else if (clusters.size() > 0)
       produceJets(clusters, recojets, 0.4, cuts, doPuSubtraction, doSubstructure);
 
-    // match reco to gen (need this in order to make resolution plots)
-    matchJets(genjets, recojets, 0.4);
-
     if (debug) { 
         cout<<" ------  gen jets ------"<<endl;
         printJets(genjets);
@@ -266,11 +265,32 @@ int main(int argc, char* argv[]){
         printJets(recojets);
     }
 
-    // fill plots
+    if (doConeCheck == "1"){
+      cout<<" ------ rechits summed around anti-kt jet axis' ------"<<endl;
+	
+      JetCollection newjets;
+      sumOverCone(newjets, recojets, clean_rechits, 0.4);
     
-    gen_plots.fill(genjets);
-    reco_plots.fill(recojets);
-    
+      // match reco to gen (need this in order to make resolution plots) 
+      // matching aroud 0.3 (ATLAS-CONF-2015-037)
+      matchJets(genjets, newjets, 0.3);
+
+      if (debug) { 
+	cout<<" ------  jets in cone ------ "<<endl;
+	printJets(newjets);
+      }
+      gen_plots.fill(genjets);  
+      reco_plots.fill(newjets);
+    }
+    else {
+      
+      // match reco to gen (need this in order to make resolution plots)                                                                                                               
+      matchJets(genjets, recojets, 0.4);
+
+      // fill plots
+      gen_plots.fill(genjets);
+      reco_plots.fill(recojets);
+    }
   } // end event loop
   
   //store plots in output file
@@ -515,4 +535,40 @@ void printJets(JetCollection& jets){
            (jets.at(j)->ref())->print();
        }
     }
+}
+
+//------------------------------------------------------------------------------------------------------
+void sumOverCone(JetCollection& newjets, JetCollection& recojets, RecHitCollection& recHits,float dr){
+ 
+ for (unsigned i = 0; i < recojets.size() ; i++) { 
+   Jet *rj = recojets.at(i);
+   float eta;
+   float phi;
+   float pt;
+   float energy;
+   float x;
+   float y;
+   float z;
+   TLorentzVector p4; // use SetPtEtaPhiM
+   // sums up all reHits aroud DeltaR=0.4
+   for (unsigned j = 0; j < recHits.size() ; j++) { 
+     RecHit *hit = recHits.at(j);
+     float dr_gh = hit->p4().DeltaR(rj->p4());
+     if( dr_gh < dr ){
+       // Add hit to new jet
+       // Calculate transverse momentum
+       x += hit->pos().X() * hit->energy();
+       y += hit->pos().Y() * hit->energy();
+       z += hit->pos().Z() * hit->energy();
+       energy += hit->energy();
+       eta += hit->pos().Eta() * hit->energy();
+       phi += hit->pos().Phi() * hit->energy();
+     }
+   }
+   TVector3 vec;
+   vec.SetXYZ(x/energy,y/energy,z/energy);
+   p4.SetPtEtaPhiE(energy*vec.Unit().Perp(), eta/energy, phi/energy,energy);
+   Jet newjet(p4);
+   newjets.Add(new Jet(newjet));
+ }
 }

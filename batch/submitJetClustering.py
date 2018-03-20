@@ -45,9 +45,19 @@ def main():
                       dest="topoCluster", action="store_true",
                       default=False)
 
+    parser.add_option("--coneCheck", help="check simple cone sum around jet axis",
+                      dest="coneCheck", action="store_true",
+                      default=False)
+
     (options, args) = parser.parse_args()
     input_dir     = options.input
-    output_dir    = '/eos/experiment/fcc/users/c/cneubuse/JetClustering/'+options.algorithm+'/'+options.output
+    algo = options.algorithm
+    check = "0"
+    if options.coneCheck:
+        algo = algo + '_coneCheck'
+        check = "1"
+        
+    output_dir    = '/eos/experiment/fcc/users/c/cneubuse/JetClustering/'+algo+'/'+options.output
     max_events    = int(options.nev)
     queue         = options.queue
     collect       = options.collect
@@ -72,6 +82,7 @@ def main():
         input_dir = '/eos/experiment/fcc/users/c/cneubuse/JetClustering/'
         energies = [20,50,100,200,500,1000,2000,5000,10000]
         outfile = input_dir+collect+'/all_'+collect+'.root'
+        print outfile
         for energy in energies:
             dir_out = str(input_dir)+collect+'/'+str(energy)+'GeVljets/out/'
             print 'directory in which to find the merged files of energy {0}GeV : {1}'.format(energy,dir_out)
@@ -118,7 +129,7 @@ def main():
        
        outputFile = output_dir+'/out/'+basename+'.root'
        cmd = 'bsub -o '+output_dir+'/std/'+basename +'.out -e '+output_dir+'/std/'+basename +'.err -q '+queue
-       cmd +=' -J '+basename+' "'+currentDir+'/submitJets.sh '+inputFile+' '+outputFile+' '+str(max_events)+' '+runtype+'"'
+       cmd +=' -J '+basename+' "'+currentDir+'/submitJets.sh '+inputFile+' '+outputFile+' '+str(max_events)+' '+runtype+' '+str(check)+'"'
        
        print cmd
        # submitting jobs
