@@ -4,26 +4,24 @@
 #include "RecHit.hh"
 #include "TLorentzVector.h"
 
-class RecHitCollection{
+class RecHitCollection {
+ private:
+  std::vector<RecHit*> _rechits;
 
-   private:
-       std::vector<RecHit*> _rechits;
+ public:
+  RecHitCollection();
+  RecHitCollection(RecHitCollection& coll);
 
-   public:
+  ~RecHitCollection();
 
-       RecHitCollection();
-       RecHitCollection(RecHitCollection& coll);
+  RecHit* AddRecHit(const TLorentzVector p4, const TLorentzVector pos,
+                    int layer, int bits);
+  void Add(RecHit* r);
 
-       ~RecHitCollection();
-       
-       RecHit* AddRecHit(const TLorentzVector p4, const TLorentzVector pos, int layer);
-       void Add(RecHit* r);
-       
-       RecHit* at(const unsigned int i);       
+  RecHit* at(const unsigned int i);
 
-       unsigned int size();
-       void Delete(const unsigned int i);
-
+  unsigned int size();
+  void Delete(const unsigned int i);
 };
 
 #endif
