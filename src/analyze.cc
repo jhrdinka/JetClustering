@@ -306,12 +306,16 @@ int main(int argc, char *argv[]) {
         // go through layer
         for (auto &lay : hitsPerLayer) {
           auto hits = lay.second;
-          std::vector<float> distances;
-          float averageR = 0;
-          float averageZ = 0;
-          float mean = 0;
-          float min = std::numeric_limits<double>::max();
-          float max = std::numeric_limits<double>::min();
+          std::vector<float> distancesS;
+          std::vector<float> distancesRZ;
+
+          float meanDs = 0;
+          float minDs = std::numeric_limits<double>::max();
+          float maxDs = std::numeric_limits<double>::min();
+
+          float meanDrz = 0;
+          float minDrz = std::numeric_limits<double>::max();
+          float maxDrz = std::numeric_limits<double>::min();
           size_t nDistances = 0;
           // go through hits in jets
           for (auto h0 = hits.begin(); h0 != (hits.end() - 1); h0++) {
@@ -319,28 +323,39 @@ int main(int argc, char *argv[]) {
             for (auto h1 = (h0 + 1); h1 != hits.end(); h1++) {
               // only calculate distance if they are different particles
               if ((*h0)->bits() != (*h1)->bits()) {
-                float dPhi = (*h0)->phi() - (*h1)->phi();
-                float dEta = (*h0)->eta() - (*h1)->eta();
-                float dR = sqrt(dPhi * dPhi + dEta * dEta);
-                float r =
+                float dRZ = 0;
+                float r0 =
                     sqrt((*h0)->x() * (*h0)->x() + (*h0)->y() * (*h0)->y());
-                averageR += r;
-                averageZ += (*h0)->z();
-                mean += dR;
-                if (dR < min) min = dR;
-                if (dR > max) max = dR;
-                distances.push_back(dR);
+                float r1 =
+                    sqrt((*h0)->x() * (*h0)->x() + (*h0)->y() * (*h0)->y());
+                float z0 = (*h0)->z();
+                float dS = fabs(r0 * (*h0)->phi()) -
+                           r1 * ((*h1)->phi());  // bogenlaenge
+                if (lay.first <= 11) {           // cylinderlayer
+                  dRZ = fabs(r0 - r1);
+                } else
+                  float dRZ = fabs(z0 - (*h1)->z());
+
+                meanDs += dS;
+                if (dS < minDs) minDs = dS;
+                if (dS > maxDs) maxDs = dS;
+
+                meanDrz += dRZ;
+                if (dRZ < minDrz) minDrz = dRZ;
+                if (dRZ > maxDrz) maxDrz = dRZ;
+
+                distancesS.push_back(dS);
+                distancesRZ.push_back(dRZ);
                 nDistances++;
               }  // check truth
             }    // h1
           }      // h0
           if (nDistances > 1) {
-            averageR /= nDistances;
-            averageZ /= nDistances;
-            mean /= nDistances;
+            meanDs /= nDistances;
+            meanDrz /= nDistances;
           }
-          hitAnalysis.fill(lay.first, averageR, averageZ, distances, mean, min,
-                           max);
+          hitAnalysis.fill(lay.first, distancesRZ, meanDrz, minDrz, maxDrz,
+                           distancesS, meanDs, minDs, maxDs);
         }  // hits per layer
       }    // hits per jets
     }

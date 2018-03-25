@@ -14,26 +14,32 @@ class HitAnalysis {
   TString _treeName;
   /// layerID
   int _layerID;
-  /// Optional parameter (e.g. for indicating position in r, eta)
-  float _r;
-  /// Optional parameter (e.g. for indicating position in z, phi)
-  float _z;
   /// deltaR
-  std::vector<float> _deltaR;
+  std::vector<float> _distancesRZ;
   /// mean
-  float _mean;
+  float _meanDrz;
   /// min
-  float _min;
+  float _minDrz;
   /// max
-  float _max;
+  float _maxDrz;
+  /// deltaPhi
+  std::vector<float> _distancesS;
+  /// mean
+  float _meanDs;
+  /// min
+  float _minDs;
+  /// max
+  float _maxDs;
   /// The output tree
   TTree* _outputTree;
 
  public:
   // constructors
   HitAnalysis(const TString treeName);
-  void fill(const int& layerID, const float& r, const float& z,
-            const std::vector<float>& deltaR, float mean, float min, float max);
+  void fill(const int& layerID, const std::vector<float>& deltaRZ,
+            const float& meanRZ, const float& minRZ, const float& maxRZ,
+            const std::vector<float>& deltaS, const float& meanS,
+            const float& minS, const float& maxS);
   void write();
 };
 

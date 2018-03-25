@@ -3,35 +3,43 @@
 HitAnalysis::HitAnalysis(const TString treeName)
     : _treeName(treeName),
       _layerID(0),
-      _r(0.),
-      _z(0.),
-      _deltaR({}),
-      _mean(0.),
-      _min(0.),
-      _max(0.) {
+      _distancesRZ({}),
+      _meanDrz(0.),
+      _minDrz(0.),
+      _maxDrz(0.),
+      _distancesS({}),
+      _meanDs(0.),
+      _minDs(0.),
+      _maxDs(0.) {
   _outputTree = new TTree(_treeName, "HitAnalysis");
   if (!_outputTree) throw std::bad_alloc();
 
   // Initial parameters
   _outputTree->Branch("layerID", &_layerID);
-  _outputTree->Branch("r", &_r);
-  _outputTree->Branch("z", &_z);
-  _outputTree->Branch("deltaR", &_deltaR);
-  _outputTree->Branch("mean", &_mean);
-  _outputTree->Branch("min", &_min);
-  _outputTree->Branch("max", &_max);
+  _outputTree->Branch("distancesRZ", &_distancesRZ);
+  _outputTree->Branch("meanDrz", &_meanDrz);
+  _outputTree->Branch("minDrz", &_minDrz);
+  _outputTree->Branch("maxDrz", &_maxDrz);
+  _outputTree->Branch("distancesS", &_distancesS);
+  _outputTree->Branch("meanDs", &_meanDs);
+  _outputTree->Branch("minDs", &_minDs);
+  _outputTree->Branch("mazDs", &_maxDs);
 }
 
-void HitAnalysis::fill(const int& layerID, const float& r, const float& z,
-                       const std::vector<float>& deltaR, float mean, float min,
-                       float max) {
+void HitAnalysis::fill(const int& layerID, const std::vector<float>& deltaRZ,
+                       const float& meanRZ, const float& minRZ,
+                       const float& maxRZ, const std::vector<float>& deltaS,
+                       const float& meanS, const float& minS,
+                       const float& maxS) {
   _layerID = layerID;
-  _r = r;
-  _z = z;
-  _deltaR = deltaR;
-  _mean = mean;
-  _min = min;
-  _max = max;
+  _distancesRZ = deltaRZ;
+  _meanDrz = meanRZ;
+  _minDrz = minRZ;
+  _maxDrz = maxRZ;
+  _distancesS = deltaS;
+  _meanDs = meanS;
+  _minDs = minS;
+  _maxDs = maxS;
 
   _outputTree->Fill();
 }
