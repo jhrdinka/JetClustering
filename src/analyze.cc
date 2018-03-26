@@ -116,13 +116,13 @@ int main(int argc, char *argv[]) {
   vector<Float_t> *rechit_layer = 0;
   vector<int> *rechit_bits = 0;
 
-  vector<Float_t> *cluster_pt = 0;
-  vector<Float_t> *cluster_eta = 0;
-  vector<Float_t> *cluster_phi = 0;
-  vector<Float_t> *cluster_energy = 0;
-  vector<Float_t> *cluster_x = 0;
-  vector<Float_t> *cluster_y = 0;
-  vector<Float_t> *cluster_z = 0;
+  /* vector<Float_t> *cluster_pt = 0;
+   vector<Float_t> *cluster_eta = 0;
+   vector<Float_t> *cluster_phi = 0;
+   vector<Float_t> *cluster_energy = 0;
+   vector<Float_t> *cluster_x = 0;
+   vector<Float_t> *cluster_y = 0;
+   vector<Float_t> *cluster_z = 0;*/
 
   vector<Float_t> *genpart_pt = 0;
   vector<Float_t> *genpart_eta = 0;
@@ -143,13 +143,13 @@ int main(int argc, char *argv[]) {
   t->SetBranchAddress("rechit_layer", &rechit_layer);
   t->SetBranchAddress("rechit_bits", &rechit_bits);
 
-  t->SetBranchAddress("cluster_eta", &cluster_eta);
-  t->SetBranchAddress("cluster_phi", &cluster_phi);
-  t->SetBranchAddress("cluster_pt", &cluster_pt);
-  t->SetBranchAddress("cluster_energy", &cluster_energy);
-  t->SetBranchAddress("cluster_x", &cluster_x);
-  t->SetBranchAddress("cluster_y", &cluster_y);
-  t->SetBranchAddress("cluster_z", &cluster_z);
+  /* t->SetBranchAddress("cluster_eta", &cluster_eta);
+   t->SetBranchAddress("cluster_phi", &cluster_phi);
+   t->SetBranchAddress("cluster_pt", &cluster_pt);
+   t->SetBranchAddress("cluster_energy", &cluster_energy);
+   t->SetBranchAddress("cluster_x", &cluster_x);
+   t->SetBranchAddress("cluster_y", &cluster_y);
+   t->SetBranchAddress("cluster_z", &cluster_z);*/
 
   t->SetBranchAddress("gen_eta", &genpart_eta);
   t->SetBranchAddress("gen_phi", &genpart_phi);
@@ -246,20 +246,20 @@ int main(int argc, char *argv[]) {
     // ---  prepare clusters ----------------------------------------------
     ClusterCollection clusters;
     // make sure the clusters are written in file
-    TString findCluster("cluster_pt");
-    TBranch *br = t->FindBranch(findCluster);
-    if (br) {
-      unsigned cluster_size = cluster_pt->size();
-      for (unsigned i = 0; i < cluster_size; i++) {
-        // initialize cluster
-        cluster_p4.SetPtEtaPhiE(cluster_pt->at(i), cluster_eta->at(i),
-                                cluster_phi->at(i), cluster_energy->at(i));
-        cluster_pos.SetXYZT(cluster_x->at(i), cluster_y->at(i),
-                            cluster_z->at(i), 0.0);
-        Cluster *cluster = clusters.AddCluster(cluster_p4, cluster_pos);
-      }
-      if (debug) cout << "cluster size: " << clusters.size() << endl;
-    }
+    /*   TString findCluster("cluster_pt");
+       TBranch *br = t->FindBranch(findCluster);
+       if (br) {
+         unsigned cluster_size = cluster_pt->size();
+         for (unsigned i = 0; i < cluster_size; i++) {
+           // initialize cluster
+           cluster_p4.SetPtEtaPhiE(cluster_pt->at(i), cluster_eta->at(i),
+                                   cluster_phi->at(i), cluster_energy->at(i));
+           cluster_pos.SetXYZT(cluster_x->at(i), cluster_y->at(i),
+                               cluster_z->at(i), 0.0);
+           Cluster *cluster = clusters.AddCluster(cluster_p4, cluster_pos);
+         }
+         if (debug) cout << "cluster size: " << clusters.size() << endl;
+       }*/
     // ---------- Produce jets ------------------------------------------------
 
     // declare jet collections
