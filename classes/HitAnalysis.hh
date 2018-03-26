@@ -12,6 +12,8 @@ using namespace std;
 class HitAnalysis {
  private:
   TString _treeName;
+  ///
+  float _layerRZ;
   /// layerID
   int _layerID;
   /// deltaR
@@ -36,8 +38,9 @@ class HitAnalysis {
  public:
   // constructors
   HitAnalysis(const TString treeName);
-  void fill(const int& layerID, const std::vector<float>& deltaRZ,
-            const float& meanRZ, const float& minRZ, const float& maxRZ,
+  void fill(const float& layerRZ, const int& layerID,
+            const std::vector<float>& deltaRZ, const float& meanRZ,
+            const float& minRZ, const float& maxRZ,
             const std::vector<float>& deltaS, const float& meanS,
             const float& minS, const float& maxS);
   void write();

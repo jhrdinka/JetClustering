@@ -41,8 +41,8 @@
 #include "RecHitCalibration.hh"
 #include "RecHitCollection.hh"
 
-bool debug = false;
-// bool debug = true;
+// bool debug = false;
+bool debug = true;
 
 using namespace std;
 using namespace fastjet;
@@ -103,7 +103,7 @@ int main(int argc, char *argv[]) {
   // ---   Tree stuff declarations
 
   TFile *f = new TFile(argv[1]);
-  TTree *t = (TTree *)f->Get("ana/hgc");
+  TTree *t = (TTree *)f->Get("events");
 
   vector<Float_t> *rechit_pt = 0;
   vector<Float_t> *rechit_eta = 0;
@@ -166,10 +166,9 @@ int main(int argc, char *argv[]) {
   // store plots in output file
   TFile outfile(argv[2], "RECREATE");
 
-  JetPlots gen_plots = JetPlots("gen", ptvals);
-  JetPlots reco_plots = JetPlots("reco", ptvals);
+  //  JetPlots gen_plots = JetPlots("gen", ptvals);
+  //  JetPlots reco_plots = JetPlots("reco", ptvals);
   HitAnalysis hitAnalysis("hitAnalysis");
-
   // calibration
   RecHitCalibration recHitCalibration;
 
@@ -177,12 +176,10 @@ int main(int argc, char *argv[]) {
   TLorentzVector rechit_p4, rechit_pos;
   TLorentzVector cluster_p4, cluster_pos;
   TLorentzVector genpart_p4;
-
   // read all entries and fill the histograms
   Long64_t nentries = t->GetEntries();
   Long64_t nmax = stoi(argv[3]);
   Int_t nrun = TMath::Min(nentries, nmax);
-
   for (Long64_t i = 0; i < nrun; i++) {
     t->GetEntry(i);
 
@@ -208,7 +205,6 @@ int main(int argc, char *argv[]) {
     }
 
     // ---  prepare rechits ----------------------------------------------
-
     RecHitCollection rechits;
     unsigned rechit_size = rechit_pt->size();
     for (unsigned i = 0; i < rechit_size; i++) {
@@ -218,6 +214,7 @@ int main(int argc, char *argv[]) {
                              rechit_phi->at(i), rechit_energy->at(i));
       rechit_pos.SetXYZT(rechit_x->at(i), rechit_y->at(i), rechit_z->at(i),
                          0.0);
+
       RecHit *rechit = rechits.AddRecHit(
           rechit_p4, rechit_pos, rechit_layer->at(i), rechit_bits->at(i));
 
@@ -294,6 +291,8 @@ int main(int argc, char *argv[]) {
       printJets(recojets);
     }
     bool doTrackerHitAnalysis = true;
+    float moduleLengthCut = 11.;
+    float moduleWidthCut = 11.;
     if (doTrackerHitAnalysis) {
       auto hitsPerJets = hitsInJets(recojets, clean_rechits, 0.4);
       // go through jets
@@ -309,6 +308,8 @@ int main(int argc, char *argv[]) {
           std::vector<float> distancesS;
           std::vector<float> distancesRZ;
 
+          float averageRZ = 0;
+
           float meanDs = 0;
           float minDs = std::numeric_limits<double>::max();
           float maxDs = std::numeric_limits<double>::min();
@@ -317,45 +318,49 @@ int main(int argc, char *argv[]) {
           float minDrz = std::numeric_limits<double>::max();
           float maxDrz = std::numeric_limits<double>::min();
           size_t nDistances = 0;
-          // go through hits in jets
+          // go through hits in jets per layer
           for (auto h0 = hits.begin(); h0 != (hits.end() - 1); h0++) {
-            //  go through all other hits
+            //  go through all other hits in jets per layer
             for (auto h1 = (h0 + 1); h1 != hits.end(); h1++) {
               // only calculate distance if they are different particles
               if ((*h0)->bits() != (*h1)->bits()) {
-                float dRZ = 0;
                 float r0 =
                     sqrt((*h0)->x() * (*h0)->x() + (*h0)->y() * (*h0)->y());
                 float r1 =
-                    sqrt((*h0)->x() * (*h0)->x() + (*h0)->y() * (*h0)->y());
+                    sqrt((*h1)->x() * (*h1)->x() + (*h1)->y() * (*h1)->y());
                 float z0 = (*h0)->z();
-                float dS = fabs(r0 * (*h0)->phi()) -
-                           r1 * ((*h1)->phi());  // bogenlaenge
-                if (lay.first <= 11) {           // cylinderlayer
-                  dRZ = fabs(r0 - r1);
-                } else
-                  float dRZ = fabs(z0 - (*h1)->z());
+                float z1 = (*h1)->z();
+                float dS =
+                    fabs(r0 * (*h0)->phi() - r1 * (*h1)->phi());  // bogenlaenge
 
-                meanDs += dS;
-                if (dS < minDs) minDs = dS;
-                if (dS > maxDs) maxDs = dS;
+                float dRZ = (lay.first <= 11) ? fabs(z0 - z1) : fabs(r0 - r1);
+                if (dRZ < moduleLengthCut && dS < moduleWidthCut) {
+                  meanDs += dS;
+                  if (dS < minDs) minDs = dS;
+                  if (dS > maxDs) maxDs = dS;
 
-                meanDrz += dRZ;
-                if (dRZ < minDrz) minDrz = dRZ;
-                if (dRZ > maxDrz) maxDrz = dRZ;
+                  meanDrz += dRZ;
+                  if (dRZ < minDrz) minDrz = dRZ;
+                  if (dRZ > maxDrz) maxDrz = dRZ;
 
-                distancesS.push_back(dS);
-                distancesRZ.push_back(dRZ);
-                nDistances++;
+                  distancesS.push_back(dS);
+                  distancesRZ.push_back(dRZ);
+                  nDistances++;
+                }
               }  // check truth
             }    // h1
-          }      // h0
+            averageRZ +=
+                (lay.first <= 11)
+                    ? sqrt((*h0)->x() * (*h0)->x() + (*h0)->y() * (*h0)->y())
+                    : (*h0)->z();
+          }  // h0
           if (nDistances > 1) {
             meanDs /= nDistances;
             meanDrz /= nDistances;
           }
-          hitAnalysis.fill(lay.first, distancesRZ, meanDrz, minDrz, maxDrz,
-                           distancesS, meanDs, minDs, maxDs);
+          if (hits.size() > 1) averageRZ /= hits.size();
+          hitAnalysis.fill(averageRZ, lay.first, distancesRZ, meanDrz, minDrz,
+                           maxDrz, distancesS, meanDs, minDs, maxDs);
         }  // hits per layer
       }    // hits per jets
     }
@@ -373,22 +378,22 @@ int main(int argc, char *argv[]) {
         cout << " ------  jets in cone ------ " << endl;
         printJets(newjets);
       }
-      gen_plots.fill(genjets);
-      reco_plots.fill(newjets);
+      // gen_plots.fill(genjets);
+      //  reco_plots.fill(newjets);
     } else {
       // match reco to gen (need this in order to make resolution plots)
       matchJets(genjets, recojets, 0.4);
 
       // fill plots
-      gen_plots.fill(genjets);
-      reco_plots.fill(recojets);
+      //   gen_plots.fill(genjets);
+      //   reco_plots.fill(recojets);
     }
 
   }  // end event loop
 
   // store plots in output root tree
-  gen_plots.write();
-  reco_plots.write();
+  // gen_plots.write();
+  // reco_plots.write();
   hitAnalysis.write();
 
   outfile.Close();
@@ -673,22 +678,29 @@ std::vector<std::vector<RecHit *>> hitsInJets(JetCollection &recojets,
                                               float rMin, float rMax) {
   // the return vector
   std::vector<std::vector<RecHit *>> hitsInJets;
+  std::vector<RecHit *> trackerHits;
   for (unsigned i = 0; i < recojets.size(); i++) {
     Jet *rj = recojets.at(i);
     std::vector<RecHit *> hits;
     // sums up all reHits aroud DeltaR
     for (unsigned j = 0; j < recHits.size(); j++) {
       RecHit *hit = recHits.at(j);
-      float dr_gh = hit->p4().DeltaR(rj->p4());
+      float dr_gh = sqrt(hit->eta() * hit->eta() + hit->phi() * hit->phi());
+      //     float dr_gh = hit->p4().DeltaR(rj->p4());
+
       float r = sqrt(hit->x() * hit->x() + hit->y() * hit->y());
       float z = hit->z();
       bool rCut = (r > rMin) && (r < rMax);
       bool zCut = (z > zMin) && (z < zMax);
       bool insideCone = dr_gh < dr;
+      if (rCut && zCut) {
+        trackerHits.push_back(hit);
+      }  // cuts
       if (rCut && zCut && insideCone) {
         hits.push_back(hit);
       }  // cuts
     }    // go through hits
+    trackerHits.clear();
     hitsInJets.push_back(hits);
   }  // go through jets
   return hitsInJets;
