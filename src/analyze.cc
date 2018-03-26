@@ -205,7 +205,8 @@ int main(int argc, char *argv[]) {
       }*/
 
     // ---  prepare rechits ----------------------------------------------
-    RecHitCollection rechits;
+    //   RecHitCollection rechits; // old name -- optimize
+    RecHitCollection clean_rechits;
     unsigned rechit_size = rechit_pt->size();
     for (unsigned i = 0; i < rechit_size; i++) {
       // for (unsigned i = 0; i < 1000; i++) {
@@ -215,32 +216,33 @@ int main(int argc, char *argv[]) {
       rechit_pos.SetXYZT(rechit_x->at(i), rechit_y->at(i), rechit_z->at(i),
                          0.0);
 
-      RecHit *rechit = rechits.AddRecHit(
-          rechit_p4, rechit_pos, rechit_layer->at(i), rechit_bits->at(i));
+      RecHit *rechit = clean_rechits.AddRecHit(
+          rechit_p4, rechit_pos, rechit_layer->at(i),
+          rechit_bits->at(i));  // old name recHits --optimize
 
       // apply some rechit filtering if this is CMS HGCAL run
-      if (runType == "CMS") {
-        rechit->setThickness(rechit_thickness->at(i));
-      }
+      //    if (runType == "CMS") {
+      //      rechit->setThickness(rechit_thickness->at(i));
+      //    }
     }
 
-    if (debug) cout << "rechit size: " << rechits.size() << endl;
-    RecHitCollection clean_rechits;
-    if (runType == "CMS") {
-      computePuOffset(rechits);
+    // if (debug) cout << "rechit size: " << rechits.size() << endl;
+    /*    RecHitCollection clean_rechits;
+        if (runType == "CMS") {
+          computePuOffset(rechits);
 
-      for (unsigned i = 0; i < rechits.size(); i++) {
-        RecHit *r = rechits.at(i);
-        if (!r->isAboveThreshold(recHitCalibration, 5.0)) continue;
-        if (!r->isAbovePuNoise()) continue;
-        clean_rechits.Add(new RecHit(*r));
-      }
-    } else {
-      for (unsigned i = 0; i < rechits.size(); i++) {
-        RecHit *r = rechits.at(i);
-        clean_rechits.Add(new RecHit(*r));
-      }
-    }
+          for (unsigned i = 0; i < rechits.size(); i++) {
+            RecHit *r = rechits.at(i);
+            if (!r->isAboveThreshold(recHitCalibration, 5.0)) continue;
+            if (!r->isAbovePuNoise()) continue;
+            clean_rechits.Add(new RecHit(*r));
+          }
+        } else {
+          for (unsigned i = 0; i < rechits.size(); i++) {
+            RecHit *r = rechits.at(i);
+            clean_rechits.Add(new RecHit(*r));
+          }
+        }*/
     if (debug) cout << "clean rechit size: " << clean_rechits.size() << endl;
 
     // ---  prepare clusters ----------------------------------------------
