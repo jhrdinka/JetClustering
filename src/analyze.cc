@@ -124,12 +124,12 @@ int main(int argc, char *argv[]) {
    vector<Float_t> *cluster_y = 0;
    vector<Float_t> *cluster_z = 0;*/
 
-  vector<Float_t> *genpart_pt = 0;
-  vector<Float_t> *genpart_eta = 0;
-  vector<Float_t> *genpart_phi = 0;
-  vector<Float_t> *genpart_energy = 0;
-  vector<Float_t> *genpart_status = 0;
-  vector<Float_t> *genpart_pdgid = 0;
+  /* vector<Float_t> *genpart_pt = 0;
+   vector<Float_t> *genpart_eta = 0;
+   vector<Float_t> *genpart_phi = 0;
+   vector<Float_t> *genpart_energy = 0;
+   vector<Float_t> *genpart_status = 0;
+   vector<Float_t> *genpart_pdgid = 0;*/
 
   t->SetBranchAddress("rechit_eta", &rechit_eta);
   t->SetBranchAddress("rechit_phi", &rechit_phi);
@@ -151,12 +151,12 @@ int main(int argc, char *argv[]) {
    t->SetBranchAddress("cluster_y", &cluster_y);
    t->SetBranchAddress("cluster_z", &cluster_z);*/
 
-  t->SetBranchAddress("gen_eta", &genpart_eta);
-  t->SetBranchAddress("gen_phi", &genpart_phi);
-  t->SetBranchAddress("gen_pt", &genpart_pt);
-  t->SetBranchAddress("gen_energy", &genpart_energy);
-  t->SetBranchAddress("gen_status", &genpart_status);
-  t->SetBranchAddress("gen_pdgid", &genpart_pdgid);
+  /* t->SetBranchAddress("gen_eta", &genpart_eta);
+   t->SetBranchAddress("gen_phi", &genpart_phi);
+   t->SetBranchAddress("gen_pt", &genpart_pt);
+   t->SetBranchAddress("gen_energy", &genpart_energy);
+   t->SetBranchAddress("gen_status", &genpart_status);
+   t->SetBranchAddress("gen_pdgid", &genpart_pdgid);*/
 
   // declare histograms
   vector<float> ptvals;
@@ -186,23 +186,23 @@ int main(int argc, char *argv[]) {
     cout << " ---- processing event : " << i << endl;
 
     // ---  prepare genparts
-    GenParticleCollection genparts;
-    unsigned genpart_size = genpart_pt->size();
+    /*  GenParticleCollection genparts;
+      unsigned genpart_size = genpart_pt->size();
 
-    for (unsigned i = 0; i < genpart_size; i++) {
-      // initialize genpart
-      genpart_p4.SetPtEtaPhiE(genpart_pt->at(i), genpart_eta->at(i),
-                              genpart_phi->at(i), genpart_energy->at(i));
-      GenParticle *genpart = genparts.AddGenParticle(
-          genpart_p4, genpart_pdgid->at(i), genpart_status->at(i));
-    }
+      for (unsigned i = 0; i < genpart_size; i++) {
+        // initialize genpart
+        genpart_p4.SetPtEtaPhiE(genpart_pt->at(i), genpart_eta->at(i),
+                                genpart_phi->at(i), genpart_energy->at(i));
+        GenParticle *genpart = genparts.AddGenParticle(
+            genpart_p4, genpart_pdgid->at(i), genpart_status->at(i));
+      }
 
-    GenParticleCollection clean_genparts;
-    for (unsigned i = 0; i < genparts.size(); i++) {
-      GenParticle *g = genparts.at(i);
-      if (!g->isClusterable()) continue;
-      clean_genparts.Add(new GenParticle(*g));
-    }
+      GenParticleCollection clean_genparts;
+      for (unsigned i = 0; i < genparts.size(); i++) {
+        GenParticle *g = genparts.at(i);
+        if (!g->isClusterable()) continue;
+        clean_genparts.Add(new GenParticle(*g));
+      }*/
 
     // ---  prepare rechits ----------------------------------------------
     RecHitCollection rechits;
@@ -263,7 +263,7 @@ int main(int argc, char *argv[]) {
     // ---------- Produce jets ------------------------------------------------
 
     // declare jet collections
-    JetCollection genjets;
+    //   JetCollection genjets;
     JetCollection recojets;
 
     // produce jet collections (anti-kT R = 0.4)
@@ -276,7 +276,7 @@ int main(int argc, char *argv[]) {
     cuts.absetamin = 0.0;
     cuts.absetamax = 1.3;
 
-    produceJets(clean_genparts, genjets, 0.4, cuts, false, doSubstructure);
+    //   produceJets(clean_genparts, genjets, 0.4, cuts, false, doSubstructure);
     if (clean_rechits.size() > 0)
       produceJets(clean_rechits, recojets, 0.4, cuts, doPuSubtraction,
                   doSubstructure);
@@ -285,8 +285,8 @@ int main(int argc, char *argv[]) {
                   doSubstructure);
 
     if (debug) {
-      cout << " ------  gen jets ------" << endl;
-      printJets(genjets);
+      //    cout << " ------  gen jets ------" << endl;
+      //    printJets(genjets);
       cout << " ------  reco jets ------ " << endl;
       printJets(recojets);
     }
@@ -372,7 +372,7 @@ int main(int argc, char *argv[]) {
 
       // match reco to gen (need this in order to make resolution plots)
       // matching aroud 0.3 (ATLAS-CONF-2015-037)
-      matchJets(genjets, newjets, 0.3);
+      //   matchJets(genjets, newjets, 0.3);
 
       if (debug) {
         cout << " ------  jets in cone ------ " << endl;
