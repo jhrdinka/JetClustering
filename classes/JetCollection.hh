@@ -4,26 +4,23 @@
 #include "Jet.hh"
 #include "TLorentzVector.h"
 
-class JetCollection{
+class JetCollection {
+ private:
+  std::vector<Jet*> _jets;
 
-   private:
-       std::vector<Jet*> _jets;
+ public:
+  JetCollection();
+  JetCollection(const JetCollection& coll);
 
-   public:
+  ~JetCollection();
 
-       JetCollection();
-       JetCollection(JetCollection& coll);
+  Jet* AddJet(const TLorentzVector& p4, float vertexZ = 0);
+  void Add(Jet* r);
 
-       ~JetCollection();
-       
-       Jet* AddJet(const TLorentzVector p4);
-       void Add(Jet* r);
-       
-       Jet* at(const unsigned int i);       
+  Jet* at(const unsigned int i);
 
-       unsigned int size();
-       void Delete(const unsigned int i);
-
+  unsigned int size() const;
+  void Delete(const unsigned int i);
 };
 
 #endif

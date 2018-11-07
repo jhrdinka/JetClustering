@@ -2,59 +2,60 @@
 #define JET_H
 
 #include "TLorentzVector.h"
+#include "TVector3.h"
 
-class Jet{
+class Jet {
+ private:
+  TLorentzVector _mom;
+  float _tau1;
+  float _tau2;
+  float _tau3;
+  float _tau21;
+  float _tau32;
+  float _sdmass;
+  float _vertexZ;
 
-    private:
-        TLorentzVector _mom;
-        float _tau1;
-        float _tau2;
-        float _tau3;
-        float _tau21;
-        float _tau32;
-        float _sdmass;
+  Jet* _ref = NULL;
 
-        Jet* _ref = NULL;
+ public:
+  // constructors
+  Jet();
+  Jet(const TLorentzVector& p4, float vertexZ = 0);
+  Jet(const Jet& j);
 
-    public:
-        
-        // constructors
-        Jet();
-        Jet(TLorentzVector p4);
-        Jet(Jet& j);
+  void setTau1(float tau1);
+  void setTau2(float tau2);
+  void setTau3(float tau3);
+  void setTau21(float tau21);
+  void setTau32(float tau32);
+  void setSDmass(float sdmass);
 
-        void setTau1(float tau1);
-        void setTau2(float tau2);
-        void setTau3(float tau3);
-        void setTau21(float tau21);
-        void setTau32(float tau32);
-        void setSDmass(float sdmass);
+  void setRef(Jet*);
 
-        void setRef(Jet*);
+  float eta() const;
+  float phi() const;
+  float pt() const;
+  float energy() const;
+  float px() const;
+  float py() const;
+  float pz() const;
+  float mass() const;
 
-        float eta();
-        float phi();
-        float pt();
-        float energy();
-        float px();
-        float py();
-        float pz();
-        float mass();
+  float tau1() const;
+  float tau2() const;
+  float tau3() const;
+  float tau21() const;
+  float tau32() const;
 
-        float tau1();
-        float tau2();
-        float tau3();
-        float tau21();
-        float tau32();
+  float massSD() const;
 
-        float massSD();
+  TLorentzVector p4() const;
 
-        TLorentzVector p4();
+  float vertexZ() const;
 
-        Jet* ref();
+  Jet* ref();
 
-        void print();
-
+  void print() const;
 };
 
-#endif 
+#endif

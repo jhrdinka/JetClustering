@@ -3,35 +3,35 @@
 
 #include "TLorentzVector.h"
 
-class GenParticle{
+class GenParticle {
+ private:
+  int _pdgid;
+  int _status;
+  TLorentzVector _mom;
+  TVector3 _vertex;
+  float _charge;
 
-    private:
-        int   _pdgid;
-        int   _status;
-        TLorentzVector _mom;
+ public:
+  // constructor
+  GenParticle(const TLorentzVector& p4, int pdgid, int status,
+              const TVector3& vertex, float charge);
+  GenParticle(const GenParticle& g);
 
+  bool isClusterable() const;
 
-    public:
-        
-        // constructor
-        GenParticle(TLorentzVector p4, int pdgid, int status);
-        GenParticle(GenParticle& g);
-
-        bool isClusterable();
-        
-        float eta();
-        float phi();
-        float pt();
-        float energy();
-        float px();
-        float py();
-        float pz();
-        float mass();
-        TLorentzVector p4();
-        int   pdgid();
-        int   status();
-
-
+  float eta() const;
+  float phi() const;
+  float pt() const;
+  float energy() const;
+  float px() const;
+  float py() const;
+  float pz() const;
+  float mass() const;
+  float charge() const;
+  TLorentzVector p4() const;
+  int pdgid() const;
+  int status() const;
+  TVector3 vertex() const;
 };
 
-#endif 
+#endif
