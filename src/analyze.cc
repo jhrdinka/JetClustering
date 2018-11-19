@@ -7,6 +7,8 @@
 #include <istream>
 #include <sstream>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 // ROOT includes
@@ -14,6 +16,13 @@
 #include <TH1F.h>
 #include <TLorentzVector.h>
 #include <TTree.h>
+#include "TCanvas.h"
+#include "TGraph.h"
+#include "TMatrixD.h"
+#include "TROOT.h"
+#include "TSystemDirectory.h"
+#include "TTreeReader.h"
+#include "TTreeReaderValue.h"
 
 // fastjet includes
 #include "fastjet/ClusterSequence.hh"
@@ -32,17 +41,21 @@
 #include "Cluster.hh"
 #include "ClusterCollection.hh"
 #include "GenParticle.hh"
+#include "GenParticleAnalysis.hh"
 #include "GenParticleCollection.hh"
-#include "HitAnalysis.hh"
 #include "Jet.hh"
+#include "JetAnalysis.hh"
 #include "JetCollection.hh"
-#include "JetPlots.hh"
+#include "Layer.hh"
+#include "Module.hh"
 #include "RecHit.hh"
 #include "RecHitCalibration.hh"
 #include "RecHitCollection.hh"
+#include "SimParticle.hh"
+#include "TrackClusterAnalysis.hh"
 
-// bool debug = false;
-bool debug = true;
+bool debug = false;
+// bool debug = true;
 
 using namespace std;
 using namespace fastjet;
@@ -58,21 +71,15 @@ struct selection {
 
 //----------------------------------------------------------------------
 
-template <class Collection>
-void produceJets(Collection &input_particles, JetCollection &jets,
-                 const float &r, const selection cuts,
-                 const bool doPuSubtraction = false,
-                 const bool doSubstructure = false);
+void produceJets(GenParticleCollection &constituents, JetCollection &jets,
+                 float r, const selection &cuts, float ptMinCut, float ptMaxCut,
+                 size_t &nJets, bool doSubstructure = false);
 
 template <class Sequence>
-void convertJets(Sequence seq, vector<PseudoJet> pseudojets, const float &r,
-                 JetCollection &jets, const bool doSubstructure = false);
-
-void matchJets(JetCollection &genjets, JetCollection &recojets, float dr);
-void printJets(JetCollection &jets);
-void computePuOffset(RecHitCollection &rechits);
-void sumOverCone(JetCollection &newjets, JetCollection &recojets,
-                 RecHitCollection &rechits, float dr);
+void convertJets(Sequence seq, const vector<PseudoJet> &pseudojets, float r,
+                 GenParticleCollection &constituents, JetCollection &jets,
+                 float ptMinCut, float ptMaxCut, size_t &nJets,
+                 bool doSubstructure = false);
 
 std::vector<std::vector<RecHit *>> hitsInJets(JetCollection &recojets,
                                               RecHitCollection &recHits,
@@ -81,322 +88,620 @@ std::vector<std::vector<RecHit *>> hitsInJets(JetCollection &recojets,
                                               float rMin = 0.,
                                               float rMax = 160.);
 
+bool isClusterable(int pdgid, int status);
+
+std::vector<std::vector<unsigned>> translateMatrix(
+    const TMatrixD &trackIDsMatrix, const long long int &globalLayerID,
+    std::vector<std::unordered_set<int>> &trackIDsPerLayer,
+    std::unordered_set<int> &validTrackIDs);
+
+// hands back as a pair the valid
+std::pair<size_t, size_t> nTrackAndMergedClusters(
+    const std::vector<std::vector<unsigned>> &trackIDsPerCluster,
+    const std::unordered_set<int> &validTrackIDs);
+
+std::pair<size_t, size_t> nTracksPerCluster(
+    const std::vector<unsigned> &clusterTrackIDs,
+    const std::unordered_map<int, GenParticle> &simParticles, float pTCut,
+    const std::unordered_set<int> &validTrackIDs_layer,
+    size_t &nValidTracksLayer);
+
+bool selectPT(float pT, float pTMin, float pTMax);
+
 //----------------------------------------------------------------------
 int main(int argc, char *argv[]) {
   // Check the number of parameters
   if (argc < 6) {
     // Tell the user how to run the program
-    std::cerr << "Usage: " << argv[0] << " [input.root] "
+    std::cerr << "Usage: " << argv[0] << " [inputdir/] "
               << " [output.root] "
-              << " [Nevts] [CMS/FCC]"
-              << " [checkJetCone] " << std::endl;
+              << " [Nevts] "
+              << " [pTmin] "
+              << " [pTmax] " << std::endl;
     return 1;
   }
 
-  TString runType = argv[4];
-  if (runType != "CMS" && runType != "FCC") {
-    cerr << "Should specifiy CMS or FCC as last argument" << endl;
-    return 1;
+  //-----------------------------------------------------------------------
+  //----------------------------Definitions--------------------------------
+  //-----------------------------------------------------------------------
+
+  // Global parameters and definitions
+  std::string dirname = argv[1];
+  int nEvents = std::atoi(argv[3]);
+  float ptMinCut = std::atof(argv[4]);
+  float ptMaxCut = std::atof(argv[5]);
+  std::cout << "Begin analysis of '" << nEvents << "' Events "
+            << "of directory '" << dirname << "' , with pTCuts: '[" << ptMinCut
+            << "," << ptMaxCut << "]'." << std::endl;
+  const char *ext = ".root";
+  std::string treeName = "events";
+  // Analysis defintions
+  // JetAnalysis
+  JetAnalysis jetAnalysis("JetAnalysis", ptMinCut, ptMaxCut);
+  // GenParticleAnalysis
+  GenParticleAnalysis genParticleAnalysis("GenPart", ptMinCut, ptMaxCut, true);
+  // SimParticleAnalysis
+  GenParticleAnalysis simParticleAnalysis("SimPart", ptMinCut, ptMaxCut, true);
+  // cluster analysis
+  TrackClusterAnalysis analysis("all");
+  TrackClusterAnalysis pixelAnalysis("pixel");
+  TrackClusterAnalysis macroPixelAnalysis("macroPixel");
+  TrackClusterAnalysis stripAnalysis("Strip");
+  // total number of clusters
+  size_t nClusters = 0;
+  // total number of jets (for normalization)
+  size_t nJets = 0;
+  // layer analysis
+  std::vector<Layer> layers(12);
+  for (size_t i = 0; i < 12; i++) {
+    layers.at(i).initialize(i);
   }
 
-  TString doConeCheck = argv[5];
-  // ---   Tree stuff declarations
+  // Global parameters
+  // jet parameters
+  constexpr float R = 0.4;
+  constexpr bool doSubstructure = false;  // @todo what is that exactly?
+  // jet selection cuts
+  selection cuts;
+  cuts.ptmin = 2.5;
+  cuts.ptmax = 20000.;
+  cuts.absetamin = -2.5;  // @todo maybe change to 2.5
+  cuts.absetamax = 2.5;
 
-  TFile *f = new TFile(argv[1]);
-  TTree *t = (TTree *)f->Get("events");
+  int eventCount = 0;
 
-  vector<Float_t> *rechit_pt = 0;
-  vector<Float_t> *rechit_eta = 0;
-  vector<Float_t> *rechit_phi = 0;
-  vector<Float_t> *rechit_energy = 0;
-  vector<Float_t> *rechit_x = 0;
-  vector<Float_t> *rechit_y = 0;
-  vector<Float_t> *rechit_z = 0;
-  vector<Float_t> *rechit_thickness = 0;
-  vector<Float_t> *rechit_layer = 0;
-  vector<int> *rechit_bits = 0;
+  // masks for layers
+  long long int mask = 0xf;
+  long long int layerMaskBarrel = 0x1f0;
+  long long int posNegMask = 0x10;
+  long long int layerMaskEC = 0x3e0;
+  // number of layers
+  const int nLayers_barrel = 12;
+  const int nLayers_ec = 20;
 
-  /* vector<Float_t> *cluster_pt = 0;
-   vector<Float_t> *cluster_eta = 0;
-   vector<Float_t> *cluster_phi = 0;
-   vector<Float_t> *cluster_energy = 0;
-   vector<Float_t> *cluster_x = 0;
-   vector<Float_t> *cluster_y = 0;
-   vector<Float_t> *cluster_z = 0;*/
+  //-----------------------------------------------------------------------
+  //------------------------Read in gen paricles---------------------------
+  //-----------------------------------------------------------------------
 
-  /* vector<Float_t> *genpart_pt = 0;
-   vector<Float_t> *genpart_eta = 0;
-   vector<Float_t> *genpart_phi = 0;
-   vector<Float_t> *genpart_energy = 0;
-   vector<Float_t> *genpart_status = 0;
-   vector<Float_t> *genpart_pdgid = 0;*/
+  // go through files, events
+  TSystemDirectory dir(dirname.data(), dirname.data());
+  TList *files = dir.GetListOfFiles();
+  if (files) {
+    TSystemFile *file;
+    TString fname;
+    TIter next(files);
+    while ((file = (TSystemFile *)next()) && (eventCount < nEvents)) {
+      fname = dirname + file->GetName();
+      if (!file->IsDirectory() && fname.EndsWith(ext)) {
+        // open file
+        TFile *inFile = new TFile(fname.Data());
+        if (!inFile) {
+          std::cerr << "Could not open file: " << fname << std::endl;
+        }
 
-  t->SetBranchAddress("rechit_eta", &rechit_eta);
-  t->SetBranchAddress("rechit_phi", &rechit_phi);
-  t->SetBranchAddress("rechit_pt", &rechit_pt);
-  t->SetBranchAddress("rechit_energy", &rechit_energy);
-  t->SetBranchAddress("rechit_x", &rechit_x);
-  t->SetBranchAddress("rechit_y", &rechit_y);
-  t->SetBranchAddress("rechit_z", &rechit_z);
-  if (runType == "CMS")
-    t->SetBranchAddress("rechit_thickness", &rechit_thickness);
-  t->SetBranchAddress("rechit_layer", &rechit_layer);
-  t->SetBranchAddress("rechit_bits", &rechit_bits);
+        //-----------------------------------------------------------------------
+        //-----------------------Read in gen particles-------------------------
+        //-----------------------------------------------------------------------
+        std::cout << "before gen" << std::endl;
+        TTreeReader reader("genInfo", inFile);
+        TTreeReaderValue<std::vector<float>> genpart_eta(reader, "gen_eta");
+        TTreeReaderValue<std::vector<float>> genpart_phi(reader, "gen_phi");
+        TTreeReaderValue<std::vector<float>> genpart_pt(reader, "gen_pt");
+        TTreeReaderValue<std::vector<float>> genpart_energy(reader,
+                                                            "gen_energy");
+        TTreeReaderValue<std::vector<int>> genpart_charge(reader, "gen_charge");
+        TTreeReaderValue<std::vector<int>> genpart_status(reader, "gen_status");
+        TTreeReaderValue<std::vector<int>> genpart_pdgid(reader, "gen_pdgid");
+        TTreeReaderValue<std::vector<float>> genpart_vertexX(reader,
+                                                             "gen_vertexX");
+        TTreeReaderValue<std::vector<float>> genpart_vertexY(reader,
+                                                             "gen_vertexY");
+        TTreeReaderValue<std::vector<float>> genpart_vertexZ(reader,
+                                                             "gen_vertexZ");
 
-  /* t->SetBranchAddress("cluster_eta", &cluster_eta);
-   t->SetBranchAddress("cluster_phi", &cluster_phi);
-   t->SetBranchAddress("cluster_pt", &cluster_pt);
-   t->SetBranchAddress("cluster_energy", &cluster_energy);
-   t->SetBranchAddress("cluster_x", &cluster_x);
-   t->SetBranchAddress("cluster_y", &cluster_y);
-   t->SetBranchAddress("cluster_z", &cluster_z);*/
+        // jets per event
+        std::vector<JetCollection> jetsPerEvent;
 
-  /* t->SetBranchAddress("gen_eta", &genpart_eta);
-   t->SetBranchAddress("gen_phi", &genpart_phi);
-   t->SetBranchAddress("gen_pt", &genpart_pt);
-   t->SetBranchAddress("gen_energy", &genpart_energy);
-   t->SetBranchAddress("gen_status", &genpart_status);
-   t->SetBranchAddress("gen_pdgid", &genpart_pdgid);*/
+        std::cout << "Processing event: " << eventCount << " of " << nEvents
+                  << std::endl;
+        std::cout << "reading file: " << fname << std::endl;
+        // go through events
+        while (reader.Next() && (eventCount < nEvents)) {
+          eventCount++;
+          // create gen particle collection for this event
+          GenParticleCollection genparts;
+          // read in genparticles
+          for (size_t i = 0; i < (*genpart_pdgid).size(); i++) {
+            // only use clusterable particles (exclude neutrinos, secondaries
+            // (should not happen anyway))
+            if (isClusterable((*genpart_pdgid)[i], (*genpart_status)[i])) {
+              // set the lorentz vector of the gen particle
+              TLorentzVector genpart_p4;
+              genpart_p4.SetPtEtaPhiE((*genpart_pt)[i], (*genpart_eta)[i],
+                                      (*genpart_phi)[i], (*genpart_energy)[i]);
+              TVector3 vertex((*genpart_vertexX)[i], (*genpart_vertexY)[i],
+                              (*genpart_vertexZ)[i]);
+              // add gen particle to collection
+              const GenParticle *genpart = new GenParticle(
+                  genpart_p4, (*genpart_pdgid)[i], (*genpart_status)[i], vertex,
+                  (*genpart_charge)[i]);
 
-  // declare histograms
-  vector<float> ptvals;
-  ptvals = {10.,  20.,  30.,   50.,   75.,   100.,  150.,  200.,  300.,
-            500., 750., 1000., 1500., 2000., 3500., 5000., 7500., 15000.};
+              genparts.Add(genpart);
+            }
+          }  //** end go through gen particles
 
+          //-----------------------------------------------------------------------
+          //----------------------------Produce-jets-------------------------------
+          //-----------------------------------------------------------------------
+          JetCollection genjets;
+          // produce jet collections (anti-kT R = 0.4)
+          produceJets(genparts, genjets, R, cuts, ptMinCut, ptMaxCut, nJets,
+                      doSubstructure);
+          // add to genjets
+          jetsPerEvent.push_back(genjets);
+
+          //-----------------------------------------------------------------------
+          //--------------------------genjets-analysis-----------------------------
+          //-----------------------------------------------------------------------
+          for (size_t i = 0; i < genjets.size(); i++) {
+            // first access jet
+            auto jet = genjets.at(i);
+            jetAnalysis.fill(*jet);
+          }
+          //-----------------------------------------------------------------------
+          //--------------------------genpart-analysis-----------------------------
+          //-----------------------------------------------------------------------
+          // go through each gen particle
+          for (size_t ipart = 0; ipart < genparts.size(); ipart++) {
+            genParticleAnalysis.fillParticleAndJets(*(genparts.at(ipart)),
+                                                    genjets, R);
+          }
+
+        }  //*end go through events of genparticle tree of current file
+
+        //-----------------------------------------------------------------------
+        //-----------------------Read-in-sim-particle-map------------------------
+        //-----------------------------------------------------------------------
+        std::cout << "before sim" << std::endl;
+        // map indicating if the particle created a track above threshold
+        std::vector<std::unordered_map<int, GenParticle>> simParticlesPerEvent;
+        std::vector<float> *sim_eta = new std::vector<float>;
+        std::vector<float> *sim_phi = new std::vector<float>;
+        std::vector<float> *sim_pt = new std::vector<float>;
+        std::vector<float> *sim_energy = new std::vector<float>;
+        std::vector<int> *sim_charge = new std::vector<int>;
+        std::vector<int> *sim_bits = new std::vector<int>;
+        std::vector<int> *sim_status = new std::vector<int>;
+        std::vector<int> *sim_pdgid = new std::vector<int>;
+        std::vector<float> *sim_vertexX = new std::vector<float>;
+        std::vector<float> *sim_vertexY = new std::vector<float>;
+        std::vector<float> *sim_vertexZ = new std::vector<float>;
+
+        TTree *simInfo = (TTree *)inFile->Get("simInfo");
+        simInfo->SetBranchAddress("sim_eta", &sim_eta);
+        simInfo->SetBranchAddress("sim_phi", &sim_phi);
+        simInfo->SetBranchAddress("sim_pt", &sim_pt);
+        simInfo->SetBranchAddress("sim_energy", &sim_energy);
+        simInfo->SetBranchAddress("sim_status", &sim_status);
+        simInfo->SetBranchAddress("sim_pdgid", &sim_pdgid);
+        simInfo->SetBranchAddress("sim_charge", &sim_charge);
+        simInfo->SetBranchAddress("sim_vertexX", &sim_vertexX);
+        simInfo->SetBranchAddress("sim_vertexY", &sim_vertexY);
+        simInfo->SetBranchAddress("sim_vertexZ", &sim_vertexZ);
+        simInfo->SetBranchAddress("sim_bits", &sim_bits);
+
+        for (int iEvent = 0;
+             (iEvent < simInfo->GetEntries()) && (iEvent < nEvents); iEvent++) {
+          simInfo->GetEntry(iEvent);
+          auto currentJets = jetsPerEvent.at(iEvent);
+          std::unordered_map<int, GenParticle> simParticleMap;
+          for (size_t i_simPart = 0; i_simPart < sim_bits->size();
+               i_simPart++) {
+            //	if ((*sim_pt)[i_simPart]>0.){
+            // the four momentum
+            TLorentzVector simpart_p4;
+            simpart_p4.SetPtEtaPhiE((*sim_pt)[i_simPart], (*sim_eta)[i_simPart],
+                                    (*sim_phi)[i_simPart],
+                                    (*sim_energy)[i_simPart]);
+            // the vertex
+            TVector3 vertex((*sim_vertexX)[i_simPart],
+                            (*sim_vertexY)[i_simPart],
+                            (*sim_vertexZ)[i_simPart]);
+            // store the simparticle in the map
+            GenParticle simPart(simpart_p4, (*sim_pdgid)[i_simPart],
+                                (*sim_status)[i_simPart], vertex,
+                                (*sim_charge)[i_simPart]);
+            simParticleMap.insert(
+                std::pair<int, GenParticle>(sim_bits->at(i_simPart), simPart));
+
+            simParticleAnalysis.fillParticleAndJets(simPart, currentJets, R);
+            //	}
+          }
+          std::cout << "#simparticles for this event: " << simParticleMap.size()
+                    << ", sim_bits->size(): " << sim_bits->size() << std::endl;
+          simParticlesPerEvent.push_back(simParticleMap);
+        }
+
+        //-----------------------------------------------------------------------
+        //--------------------------read-in-clusters-----------------------------
+        //-----------------------------------------------------------------------
+        // first read in cluster and module information
+        TTreeReader clusterReader(treeName.c_str(), inFile);
+        TTreeReaderValue<int> eventNr(clusterReader, "event_nr");
+        TTreeReaderValue<long long int> moduleID(clusterReader, "moduleID");
+        TTreeReaderValue<int> nChannels(clusterReader, "nChannels");
+        TTreeReaderValue<int> nChannelsOn(clusterReader, "nChannelsOn");
+        TTreeReaderValue<float> moduleX(clusterReader, "s_x");
+        TTreeReaderValue<float> moduleY(clusterReader, "s_y");
+        TTreeReaderValue<float> moduleZ(clusterReader, "s_z");
+        TTreeReaderValue<std::vector<float>> clusterX(clusterReader, "g_x");
+        TTreeReaderValue<std::vector<float>> clusterY(clusterReader, "g_y");
+        TTreeReaderValue<std::vector<float>> clusterZ(clusterReader, "g_z");
+        TTreeReaderValue<std::vector<short int>> nCells(clusterReader,
+                                                        "nCells");
+
+        // todo current workaround because of
+        // https://root-forum.cern.ch/t/problem-reading-in-tmatrixd-with-ttreereader-while-working-using-simple-tree/31113
+        //     TTreeReaderValue<TMatrixD>
+        //     trackIDsPerCluster(clusterReader,"trackIDsPerCluster");
+        TMatrixD *trackIDsMatrix = new TMatrixD();
+        TTree *clusterTree = (TTree *)inFile->Get(treeName.c_str());
+        clusterTree->SetBranchAddress("trackIDsPerCluster", &trackIDsMatrix);
+        // collect modules per event
+        std::vector<std::vector<Module>> modulesPerEvent(jetsPerEvent.size());
+
+        // the global map for valid trackIDs (trackIDs which have at least
+        // occured on one other layer
+        //***-----LayerCut-begin
+        std::vector<std::unordered_set<int>> validTrackIDsPerEvent(
+            jetsPerEvent.size());
+        // the map for each layer and event (0-11 barrel,12-32 nEC, 32-52 pEC)
+        // of valid trackIDs (tracks that are seen in at least one other layer,
+        // to substract secondaries only created within the material)
+        std::vector<std::vector<std::unordered_set<int>>>
+        trackIDsPerLayerAndEvent(jetsPerEvent.size(),
+                                 std::vector<std::unordered_set<int>>(
+                                     nLayers_barrel + 2 * nLayers_ec));
+        //***-----LayerCut-end
+        // go through all modules
+        while (clusterReader.Next()) {
+          if ((*eventNr) < nEvents) {
+            //***-----LayerCut-begin
+            // first get the global layerID of the current module to check if
+            // track has occured on another layer
+            long long int systemID = ((*moduleID) & mask);
+            long long int globalLayerID = 0;
+            if ((systemID == 0) || (systemID == 1)) {
+              //-------------------barrel-------------------
+              // calculate global barrel layer ID
+              globalLayerID =
+                  (((*moduleID) & layerMaskBarrel) >> 4) + 6 * systemID;
+              if (globalLayerID > 11 || globalLayerID < 0) {
+                throw std::runtime_error("error wrong globalLayerID in barrel");
+              }
+            } else {
+              //-------------------endcaps-------------------
+              // layer offset for endcaps
+              int layerOffset = 0;
+              if (systemID == 3) {
+                // outer
+                layerOffset = 5;
+              } else if (systemID == 4) {
+                // fwd
+                layerOffset = 11;
+              }
+              // distinguish positive and negative side
+              // calculate global ec pos layer ID
+              globalLayerID = (((*moduleID) & layerMaskEC) >> 5) + layerOffset;
+              // add barrel layers to offset
+              if (!(((*moduleID) & posNegMask) >> 4)) {
+                globalLayerID += nLayers_ec;
+                globalLayerID += nLayers_barrel;
+                //-------------------pos endcap-------------------
+                if (globalLayerID > 52 || globalLayerID < 32) {
+                  throw std::runtime_error(
+                      "error wrong globalLayerID in positive EC");
+                }
+
+              } else {
+                globalLayerID = (19 - globalLayerID);
+                globalLayerID += nLayers_barrel;
+                //-------------------neg endcap-------------------
+                if (globalLayerID > 32 || globalLayerID < 12) {
+                  throw std::runtime_error(
+                      "error wrong globalLayerID in negative EC");
+                }
+              }
+            }
+            //***-----LayerCut-end
+            auto &currentLayers = trackIDsPerLayerAndEvent.at(*eventNr);
+            auto &currentValidTrackIDSet = validTrackIDsPerEvent.at(*eventNr);
+            // access the current entry of the trackIDs matrix (work-around)
+            clusterTree->GetEntry(clusterReader.GetCurrentEntry());
+            auto trackIDsPerCluster = std::move(
+                translateMatrix(*trackIDsMatrix, globalLayerID, currentLayers,
+                                currentValidTrackIDSet));
+            // save module information
+            TVector3 modulePosition((*moduleX), (*moduleY), (*moduleZ));
+            modulesPerEvent[(*eventNr)].push_back(
+                Module((*moduleID), modulePosition, (*nChannelsOn),
+                       (*nChannels), (*clusterX), (*clusterY), (*clusterZ),
+                       std::move(trackIDsPerCluster), (*nCells)));
+
+          }  // check number of events
+        }
+        //-----------------------------------------------------------------------
+        //--------------------------cluster-analysis-----------------------------
+        //-----------------------------------------------------------------------
+        // go through events
+        for (size_t iEvent = 0; iEvent < jetsPerEvent.size(); iEvent++) {
+          // access jets of corresponding event
+          auto &genjets = jetsPerEvent.at(iEvent);
+          // access modules of corresponding event
+          auto &modules = modulesPerEvent.at(iEvent);
+
+          size_t nTracksPerEvent = 0;
+          size_t nValidTracksPerEvent = 0;
+          size_t nValidTracksPerEvent_layer = 0;
+          // go through modules and calculate deltaR to each jet and take the
+          // smallest one
+          for (auto &module : modules) {
+            // the systemID
+            long long int systemID = (module.moduleID() & mask);
+            // calculate global barrel layer ID
+            long long int barrelLayerID =
+                ((module.moduleID() & layerMaskBarrel) >> 4) + 6 * systemID;
+            // calculate deltaR
+            float defaultCone = R;
+            float deltaR_module = defaultCone;
+
+            // access the modulePosition
+            auto modulePosition = module.position();
+            // access the trackIDs of this module
+            auto trackIDsPerCluster = module.trackIDsPerCluster();
+
+            // calculate deltaR to each jet and take the smallest one
+            // go through jets (should be two only)
+            for (size_t i = 0; i < genjets.size(); i++) {
+              // first access jet
+              auto jet = genjets.at(i);
+              // access LorentzVector
+              auto pJet = jet->p4().Vect();
+              // module position corrected to the vertex of the current jet
+              TVector3 modulePos(modulePosition.X(), modulePosition.Y(),
+                                 (modulePosition.Z() - jet->vertexZ()));
+              // calculate deltaR
+              float dR = pJet.DeltaR(modulePos);
+              if (dR < deltaR_module) {
+                deltaR_module = dR;
+              }
+            }  // go through jets
+
+            const std::vector<float> &clusterPositionX =
+                module.clusterPositionX();
+            const std::vector<float> &clusterPositionY =
+                module.clusterPositionY();
+            const std::vector<float> &clusterPositionZ =
+                module.clusterPositionZ();
+
+            const std::vector<short int> &nCellsPerCluster =
+                module.nCellsPerCluster();
+
+            //------------now fill information per cluster------------
+            for (size_t j = 0; j < clusterPositionX.size(); j++) {
+              // fill cluster analysis
+              TVector3 clusterPosition(clusterPositionX.at(j),
+                                       clusterPositionY.at(j),
+                                       clusterPositionZ.at(j));
+              // all clusters also outside jets
+              analysis.fill_allClusters(clusterPosition.Eta(),
+                                        clusterPosition.Phi(),
+                                        module.moduleID());
+              // set parameters
+              float deltaR_cluster = defaultCone;
+              float eta_jet = 0.;
+              float phi_jet = 0.;
+              // number of tracks in this cluster
+              size_t nTracksLayer = 0;
+              auto nTracks = nTracksPerCluster(
+                  trackIDsPerCluster.at(j), simParticlesPerEvent.at(iEvent),
+                  0.015, validTrackIDsPerEvent.at(iEvent), nTracksLayer);
+              nTracksPerEvent += nTracks.first;
+              nValidTracksPerEvent += nTracks.second;
+              nValidTracksPerEvent_layer += nTracksLayer;
+              // go through jets
+              for (size_t i = 0; i < genjets.size(); i++) {
+                // first access jet
+                auto jet = genjets.at(i);
+
+                TVector3 clusterPos(clusterPosition.X(), clusterPosition.Y(),
+                                    clusterPosition.Z() - jet->vertexZ());
+                // access LorentzVector
+                auto pJet = jet->p4().Vect();
+                // calculate deltaR
+                float dR = pJet.DeltaR(clusterPos);
+                if (dR < deltaR_cluster) {
+                  deltaR_cluster = dR;
+                  eta_jet = jet->p4().Eta();
+                  phi_jet = jet->p4().Phi();
+                }
+              }  // go through jets
+              // only write out, when inside jet
+              if (deltaR_cluster < defaultCone) {
+                analysis.fill_cluster(deltaR_cluster, clusterPosition.Eta(),
+                                      eta_jet, clusterPosition.Phi(), phi_jet,
+                                      nTracks.first, nTracks.second,
+                                      nTracksLayer, module.moduleID(),
+                                      nCellsPerCluster.at(j));
+                nClusters++;
+              }
+
+              // fill region info per cluster
+              if ((systemID == 0) || (systemID == 1)) {
+                //-------------------barrel-------------------
+                // fill region information
+                if (barrelLayerID < 4) {
+                  // pixel
+                  pixelAnalysis.fill_allClusters(clusterPosition.Eta(),
+                                                 clusterPosition.Phi(),
+                                                 module.moduleID());
+                  if (deltaR_cluster < defaultCone) {
+                    pixelAnalysis.fill_cluster(
+                        deltaR_cluster, clusterPosition.Eta(), eta_jet,
+                        clusterPosition.Phi(), phi_jet, nTracks.first,
+                        nTracks.second, nTracksLayer, module.moduleID(),
+                        nCellsPerCluster.at(j));
+                  }
+                } else if (barrelLayerID < 8) {
+                  // macroPixel
+                  macroPixelAnalysis.fill_allClusters(clusterPosition.Eta(),
+                                                      clusterPosition.Phi(),
+                                                      module.moduleID());
+                  if (deltaR_cluster < defaultCone) {
+                    macroPixelAnalysis.fill_cluster(
+                        deltaR_cluster, clusterPosition.Eta(), eta_jet,
+                        clusterPosition.Phi(), phi_jet, nTracks.first,
+                        nTracks.second, nTracksLayer, module.moduleID(),
+                        nCellsPerCluster.at(j));
+                  }
+                } else {
+                  // strip
+                  stripAnalysis.fill_allClusters(clusterPosition.Eta(),
+                                                 clusterPosition.Phi(),
+                                                 module.moduleID());
+                  if (deltaR_cluster < defaultCone) {
+                    stripAnalysis.fill_cluster(
+                        deltaR_cluster, clusterPosition.Eta(), eta_jet,
+                        clusterPosition.Phi(), phi_jet, nTracks.first,
+                        nTracks.second, nTracksLayer, module.moduleID(),
+                        nCellsPerCluster.at(j));
+                  }
+                }
+              }
+
+            }  // go through clusters of this module
+
+            // fill module information
+            if (deltaR_module < defaultCone) {
+              analysis.fill_module(deltaR_module, module.nClusters(),
+                                   module.occupancy(), module.moduleID());
+              // fill layer info
+              if ((systemID == 0) || (systemID == 1)) {
+                //-------------------barrel-------------------
+                // create layer information
+                layers.at(barrelLayerID)
+                    .addClusters(module.clusterPositionX(),
+                                 module.clusterPositionY(),
+                                 module.clusterPositionZ(), deltaR_module,
+                                 module.occupancy(), trackIDsPerCluster);
+                // fill region information
+                if (barrelLayerID < 4) {
+                  // pixel
+                  pixelAnalysis.fill_module(deltaR_module, module.nClusters(),
+                                            module.occupancy(),
+                                            module.moduleID());
+                } else if (barrelLayerID < 8) {
+                  // macroPixel
+                  macroPixelAnalysis.fill_module(
+                      deltaR_module, module.nClusters(), module.occupancy(),
+                      module.moduleID());
+                } else {
+                  // strip
+                  stripAnalysis.fill_module(deltaR_module, module.nClusters(),
+                                            module.occupancy(),
+                                            module.moduleID());
+                }
+              }
+            }
+          }  // go through  modules
+          std::cout << "nTracksPerEvent: " << nTracksPerEvent
+                    << ", nValidTracksPerEvent: " << nValidTracksPerEvent
+                    << ", validLayer: " << nValidTracksPerEvent_layer
+                    << std::endl;
+
+        }  // go through events
+      }
+    }
+  }
+
+  std::cout << "Before writing: " << std::endl;
   // store plots in output file
   TFile outfile(argv[2], "RECREATE");
 
-  //  JetPlots gen_plots = JetPlots("gen", ptvals);
-  //  JetPlots reco_plots = JetPlots("reco", ptvals);
-  HitAnalysis hitAnalysis("hitAnalysis");
-  // calibration
-  RecHitCalibration recHitCalibration;
+  // normalize
+  std::cout << "eventCount: " << eventCount << std::endl;
+  std::cout << "number of jets: " << nJets << std::endl;
+  jetAnalysis.normalize(nJets);
+  genParticleAnalysis.normalize(nJets);
+  simParticleAnalysis.normalize(nJets);
+  analysis.normalize(nJets);
+  // @todo can this vary? the number jets per region?
+  pixelAnalysis.normalize(nJets);
+  macroPixelAnalysis.normalize(nJets);
+  stripAnalysis.normalize(nJets);
+  std::cout << "Total number of clusters: " << nClusters << std::endl;
 
-  // generic declarations
-  TLorentzVector rechit_p4, rechit_pos;
-  TLorentzVector cluster_p4, cluster_pos;
-  TLorentzVector genpart_p4;
-  // read all entries and fill the histograms
-  Long64_t nentries = t->GetEntries();
-  Long64_t nmax = stoi(argv[3]);
-  Int_t nrun = TMath::Min(nentries, nmax);
-  for (Long64_t i = 0; i < nrun; i++) {
-    t->GetEntry(i);
+  analysis.write();
+  jetAnalysis.write();
+  genParticleAnalysis.write();
+  simParticleAnalysis.write();
 
-    cout << " ---- processing event : " << i << endl;
+  float nClusters_layer[12];
+  float nlayers[12] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
 
-    // ---  prepare genparts
-    /*  GenParticleCollection genparts;
-      unsigned genpart_size = genpart_pt->size();
+  TDirectory *dir_layers = outfile.mkdir("layers");
+  dir_layers->cd();
+  size_t layerCounter = 0;
+  for (auto &layer : layers) {
+    nClusters_layer[layerCounter] = layer.nClusters();
+    layerCounter++;
+    //  layer.fillDistances(_dz_dR, _dphi_dR);
+    layer.normalize(eventCount);
+    layer.print();
+  }
+  outfile.cd();
 
-      for (unsigned i = 0; i < genpart_size; i++) {
-        // initialize genpart
-        genpart_p4.SetPtEtaPhiE(genpart_pt->at(i), genpart_eta->at(i),
-                                genpart_phi->at(i), genpart_energy->at(i));
-        GenParticle *genpart = genparts.AddGenParticle(
-            genpart_p4, genpart_pdgid->at(i), genpart_status->at(i));
-      }
+  // per region
+  TDirectory *dir_pixel = outfile.mkdir("pixel");
+  dir_pixel->cd();
+  pixelAnalysis.write();
+  outfile.cd();
 
-      GenParticleCollection clean_genparts;
-      for (unsigned i = 0; i < genparts.size(); i++) {
-        GenParticle *g = genparts.at(i);
-        if (!g->isClusterable()) continue;
-        clean_genparts.Add(new GenParticle(*g));
-      }*/
+  TDirectory *dir_macroPixel = outfile.mkdir("macroPixel");
+  dir_macroPixel->cd();
+  macroPixelAnalysis.write();
+  outfile.cd();
 
-    // ---  prepare rechits ----------------------------------------------
-    //   RecHitCollection rechits; // old name -- optimize
-    RecHitCollection clean_rechits;
-    unsigned rechit_size = rechit_pt->size();
-    for (unsigned i = 0; i < rechit_size; i++) {
-      // for (unsigned i = 0; i < 1000; i++) {
-      // initialize rechit
-      rechit_p4.SetPtEtaPhiE(rechit_pt->at(i), rechit_eta->at(i),
-                             rechit_phi->at(i), rechit_energy->at(i));
-      rechit_pos.SetXYZT(rechit_x->at(i), rechit_y->at(i), rechit_z->at(i),
-                         0.0);
+  TDirectory *dir_strip = outfile.mkdir("strip");
+  dir_strip->cd();
+  stripAnalysis.write();
+  outfile.cd();
 
-      RecHit *rechit = clean_rechits.AddRecHit(
-          rechit_p4, rechit_pos, rechit_layer->at(i),
-          rechit_bits->at(i));  // old name recHits --optimize
-
-      // apply some rechit filtering if this is CMS HGCAL run
-      //    if (runType == "CMS") {
-      //      rechit->setThickness(rechit_thickness->at(i));
-      //    }
-    }
-
-    // if (debug) cout << "rechit size: " << rechits.size() << endl;
-    /*    RecHitCollection clean_rechits;
-        if (runType == "CMS") {
-          computePuOffset(rechits);
-
-          for (unsigned i = 0; i < rechits.size(); i++) {
-            RecHit *r = rechits.at(i);
-            if (!r->isAboveThreshold(recHitCalibration, 5.0)) continue;
-            if (!r->isAbovePuNoise()) continue;
-            clean_rechits.Add(new RecHit(*r));
-          }
-        } else {
-          for (unsigned i = 0; i < rechits.size(); i++) {
-            RecHit *r = rechits.at(i);
-            clean_rechits.Add(new RecHit(*r));
-          }
-        }*/
-    if (debug) cout << "clean rechit size: " << clean_rechits.size() << endl;
-
-    // ---  prepare clusters ----------------------------------------------
-    ClusterCollection clusters;
-    // make sure the clusters are written in file
-    /*   TString findCluster("cluster_pt");
-       TBranch *br = t->FindBranch(findCluster);
-       if (br) {
-         unsigned cluster_size = cluster_pt->size();
-         for (unsigned i = 0; i < cluster_size; i++) {
-           // initialize cluster
-           cluster_p4.SetPtEtaPhiE(cluster_pt->at(i), cluster_eta->at(i),
-                                   cluster_phi->at(i), cluster_energy->at(i));
-           cluster_pos.SetXYZT(cluster_x->at(i), cluster_y->at(i),
-                               cluster_z->at(i), 0.0);
-           Cluster *cluster = clusters.AddCluster(cluster_p4, cluster_pos);
-         }
-         if (debug) cout << "cluster size: " << clusters.size() << endl;
-       }*/
-    // ---------- Produce jets ------------------------------------------------
-
-    // declare jet collections
-    //   JetCollection genjets;
-    JetCollection recojets;
-
-    // produce jet collections (anti-kT R = 0.4)
-    bool doSubstructure = true;
-    bool doPuSubtraction = false;
-
-    selection cuts;
-    cuts.ptmin = 2.5;
-    cuts.ptmax = 20000.;
-    cuts.absetamin = 0.0;
-    cuts.absetamax = 1.3;
-
-    //   produceJets(clean_genparts, genjets, 0.4, cuts, false, doSubstructure);
-    if (clean_rechits.size() > 0)
-      produceJets(clean_rechits, recojets, 0.4, cuts, doPuSubtraction,
-                  doSubstructure);
-    else if (clusters.size() > 0)
-      produceJets(clusters, recojets, 0.4, cuts, doPuSubtraction,
-                  doSubstructure);
-
-    if (debug) {
-      //    cout << " ------  gen jets ------" << endl;
-      //    printJets(genjets);
-      cout << " ------  reco jets ------ " << endl;
-      printJets(recojets);
-    }
-    bool doTrackerHitAnalysis = true;
-    float moduleLengthCut = 11.;
-    float moduleWidthCut = 11.;
-    if (doTrackerHitAnalysis) {
-      auto hitsPerJets = hitsInJets(recojets, clean_rechits, 0.4);
-      // go through jets
-      for (auto &hitsJ : hitsPerJets) {
-        // create hits per layer
-        std::map<int, std::vector<RecHit *>> hitsPerLayer;
-        for (auto &hit : hitsJ) {
-          hitsPerLayer[hit->layer()].push_back(hit);
-        }  // go through hits
-        // go through layer
-        for (auto &lay : hitsPerLayer) {
-          auto hits = lay.second;
-          std::vector<float> distancesS;
-          std::vector<float> distancesRZ;
-
-          float averageRZ = 0;
-
-          float meanDs = 0;
-          float minDs = std::numeric_limits<double>::max();
-          float maxDs = std::numeric_limits<double>::min();
-
-          float meanDrz = 0;
-          float minDrz = std::numeric_limits<double>::max();
-          float maxDrz = std::numeric_limits<double>::min();
-          size_t nDistances = 0;
-          // go through hits in jets per layer
-          for (auto h0 = hits.begin(); h0 != (hits.end() - 1); h0++) {
-            //  go through all other hits in jets per layer
-            for (auto h1 = (h0 + 1); h1 != hits.end(); h1++) {
-              // only calculate distance if they are different particles
-              if ((*h0)->bits() != (*h1)->bits()) {
-                float r0 =
-                    sqrt((*h0)->x() * (*h0)->x() + (*h0)->y() * (*h0)->y());
-                float r1 =
-                    sqrt((*h1)->x() * (*h1)->x() + (*h1)->y() * (*h1)->y());
-                float z0 = (*h0)->z();
-                float z1 = (*h1)->z();
-                float dS =
-                    fabs(r0 * (*h0)->phi() - r1 * (*h1)->phi());  // bogenlaenge
-
-                float dRZ = (lay.first <= 11) ? fabs(z0 - z1) : fabs(r0 - r1);
-                if (dRZ < moduleLengthCut && dS < moduleWidthCut) {
-                  meanDs += dS;
-                  if (dS < minDs) minDs = dS;
-                  if (dS > maxDs) maxDs = dS;
-
-                  meanDrz += dRZ;
-                  if (dRZ < minDrz) minDrz = dRZ;
-                  if (dRZ > maxDrz) maxDrz = dRZ;
-
-                  distancesS.push_back(dS);
-                  distancesRZ.push_back(dRZ);
-                  nDistances++;
-                }
-              }  // check truth
-            }    // h1
-            averageRZ +=
-                (lay.first <= 11)
-                    ? sqrt((*h0)->x() * (*h0)->x() + (*h0)->y() * (*h0)->y())
-                    : (*h0)->z();
-          }  // h0
-          if (nDistances > 1) {
-            meanDs /= nDistances;
-            meanDrz /= nDistances;
-          }
-          if (hits.size() > 1) averageRZ /= hits.size();
-          hitAnalysis.fill(averageRZ, lay.first, distancesRZ, meanDrz, minDrz,
-                           maxDrz, distancesS, meanDs, minDs, maxDs);
-        }  // hits per layer
-      }    // hits per jets
-    }
-    if (doConeCheck == "1") {
-      cout << " ------ rechits summed around anti-kt jet axis' ------" << endl;
-
-      JetCollection newjets;
-      sumOverCone(newjets, recojets, clean_rechits, 0.4);
-
-      // match reco to gen (need this in order to make resolution plots)
-      // matching aroud 0.3 (ATLAS-CONF-2015-037)
-      //   matchJets(genjets, newjets, 0.3);
-
-      if (debug) {
-        cout << " ------  jets in cone ------ " << endl;
-        printJets(newjets);
-      }
-      // gen_plots.fill(genjets);
-      //  reco_plots.fill(newjets);
-    } else {
-      // match reco to gen (need this in order to make resolution plots)
-      //   matchJets(genjets, recojets, 0.4);
-
-      // fill plots
-      //   gen_plots.fill(genjets);
-      //   reco_plots.fill(recojets);
-    }
-
-  }  // end event loop
-
-  // store plots in output root tree
-  // gen_plots.write();
-  // reco_plots.write();
-  hitAnalysis.write();
+  TGraph *nClusters_layers = new TGraph(12, nlayers, nClusters_layer);
+  nClusters_layers->SetTitle("#clusters per barrel in jet");
+  nClusters_layers->GetXaxis()->SetTitle("layer number");
+  nClusters_layers->GetYaxis()->SetTitle("#clusters in jet");
+  nClusters_layers->Write();
 
   outfile.Close();
 
@@ -404,167 +709,87 @@ int main(int argc, char *argv[]) {
 }
 
 //------------------------------------------------------------------------------------------------------
-void computePuOffset(RecHitCollection &rechits) {
-  const int nLayers = 53;
-  const int etaSlices = 5;
-  const float etamin = 1.479;
-  const float etamax = 3.;
-  float step = float((etamax - etamin) / etaSlices);
 
-  vector<double> layer_energy_vector[nLayers][etaSlices];
-
-  for (unsigned i = 0; i < rechits.size(); i++) {
-    for (unsigned j = 0; j < etaSlices; j++) {
-      float eta1 = etamin + float(j) * step;
-      float eta2 = etamin + float(j + 1) * step;
-      RecHit *r = rechits.at(i);
-      if (fabs(r->eta()) < eta2 && fabs(r->eta()) > eta1)
-        layer_energy_vector[r->layer()][j].push_back(r->energy());
-    }
-  }
-
-  // now compute median for each layer
-  double medians[nLayers][etaSlices];
-  for (unsigned i = 0; i < nLayers; i++) {
-    for (unsigned j = 0; j < etaSlices; j++) {
-      size_t size = layer_energy_vector[i][j].size();
-      sort(layer_energy_vector[i][j].begin(), layer_energy_vector[i][j].end());
-      double median = 0;
-      if (size > 0) {
-        if (size % 2 == 0)
-          median = (layer_energy_vector[i][j][size / 2 - 1] +
-                    layer_energy_vector[i][j][size / 2]) /
-                   2;
-        else
-          median = layer_energy_vector[i][j][size / 2];
-      }
-      medians[i][j] = median;
-    }
-  }
-
-  for (unsigned i = 0; i < rechits.size(); i++) {
-    for (unsigned j = 0; j < etaSlices; j++) {
-      float eta1 = etamin + float(j) * step;
-      float eta2 = etamin + float(j + 1) * step;
-      RecHit *r = rechits.at(i);
-      if (fabs(r->eta()) < eta2 && fabs(r->eta()) > eta1)
-        r->setPuOffset(medians[r->layer()][j]);
-    }
-  }
-}
-
-//------------------------------------------------------------------------------------------------------
-template <class Collection>
-void produceJets(Collection &constituents, JetCollection &jets, const float &r,
-                 const selection cuts, const bool doPuSubtraction = false,
-                 const bool doSubstructure = false) {
+void produceJets(GenParticleCollection &constituents, JetCollection &jets,
+                 float r, const selection &cuts, float ptMinCut, float ptMaxCut,
+                 size_t &nJets, bool doSubstructure) {
   // first convert constituents into fastjet pseudo-jets
   vector<PseudoJet> input_particles;
   for (unsigned i = 0; i < constituents.size(); i++) {
     // Constituent pj = constituents.at(i);
-    input_particles.push_back(
+    auto pseudojet =
         PseudoJet(constituents.at(i)->px(), constituents.at(i)->py(),
-                  constituents.at(i)->pz(), constituents.at(i)->energy()));
+                  constituents.at(i)->pz(), constituents.at(i)->energy());
+    pseudojet.set_user_index(i);
+    input_particles.push_back(pseudojet);
   }
-
   // Initial clustering with anti-kt algorithm
-  JetAlgorithm algorithm = antikt_algorithm;
-  double jet_rad = r;  // jet radius for anti-kt algorithm
-  JetDefinition jetDef = JetDefinition(algorithm, jet_rad, E_scheme, Best);
-
-  vector<PseudoJet> akjets;
+  JetDefinition jetDef = JetDefinition(antikt_algorithm, r, E_scheme, Best);
 
   Selector select_eta = SelectorAbsEtaRange(cuts.absetamin, cuts.absetamax);
   Selector select_pt = SelectorPtRange(cuts.ptmin, cuts.ptmax);
   Selector select_jets = select_eta && select_pt;
 
-  if (doPuSubtraction) {
-    // jet area correction parameters, are used only if doPU = true
-    float etamin = 0;
-    float etamax = 2.5;
-    float spacing = 0.50;
-    Selector selector = SelectorAbsRapRange(etamin, etamax);
+  ClusterSequence clust_seq(input_particles, jetDef);
 
-    AreaDefinition areaDef(active_area, GhostedAreaSpec(selector));
-    ClusterSequenceArea clust_seq(input_particles, jetDef, areaDef);
+  vector<PseudoJet> akjets = sorted_by_pt(clust_seq.inclusive_jets());
+  // apply cuts
+  akjets = select_jets(akjets);
 
-    vector<PseudoJet> antikt_jets = clust_seq.inclusive_jets();
-
-    // now apply PU subtraction
-    RectangularGrid grid(-etamax, etamax, spacing, spacing, selector);
-    GridMedianBackgroundEstimator gmbge(grid);
-    gmbge.set_particles(input_particles);
-    Subtractor subtractor(&gmbge);
-    akjets = subtractor(antikt_jets);
-
-    // apply cuts
-    akjets = select_jets(sorted_by_pt(akjets));
-
-    // eventually apply substructure and store in custom dataformat
-    convertJets(clust_seq, akjets, r, jets, doSubstructure);
-
-    // soft killer PU (could be used later)
-
-    /*double grid_size = 0.4;
-    SoftKiller soft_killer(-3.0, 3.0, grid_size, grid_size) ;
-    double pt_threshold;
-    vector<PseudoJet> soft_killed_event;
-    soft_killer.apply(input_particles, soft_killed_event, pt_threshold);
-
-    ClusterSequence clust_seq_kill(soft_killed_event, jetDef);
-    vector<PseudoJet> kill_jets = clust_seq_kill.inclusive_jets();
-
-    kill_jets = sel_jets(kill_jets);
-
-    if(debug) cout << setprecision(4);
-    if(debug) cout << "Soft Killer applied a pt threshold of " << pt_threshold
-    << endl;
-
-    // run things and print the result
-    //----------------------------------------------------------
-    if(debug) cout << "# original hard jets" << endl;
-    for (unsigned int i=0; i<antikt_jets.size(); i++){
-      const PseudoJet &jet = antikt_jets[i];
-      if(debug) cout << "pt = " << jet.pt()
-           << ", rap = " << jet.rap()
-           << ", mass = " << jet.m() << endl;
-    }
-    if(debug) cout << endl;
-
-    if(debug) cout << "# jets after applying the soft killer" << endl;
-    for (unsigned int i=0; i<kill_jets.size(); i++){
-      const PseudoJet &jet = kill_jets[i];
-      if(debug) cout << "pt = " << jet.pt()
-           << ", rap = " << jet.rap()
-           << ", mass = " << jet.m() << endl;
-    }
-    if(debug) cout << endl;
-    }
-    */
-  } else {
-    ClusterSequence clust_seq(input_particles, jetDef);
-    akjets = sorted_by_pt(clust_seq.inclusive_jets());
-
-    // apply cuts
-    akjets = select_jets(akjets);
-
-    // eventually apply substructure and store in custom dataformat
-    convertJets(clust_seq, akjets, r, jets, doSubstructure);
-  }
+  // eventually apply substructure and store in custom dataformat
+  convertJets(clust_seq, akjets, r, constituents, jets, ptMinCut, ptMaxCut,
+              nJets, doSubstructure);
 }
 
 //------------------------------------------------------------------------------------------------------
 template <class Sequence>
-void convertJets(Sequence seq, vector<PseudoJet> pseudojets, const float &r,
-                 JetCollection &jets, const bool doSubstructure = false) {
+void convertJets(Sequence seq, const vector<PseudoJet> &pseudojets, float r,
+                 GenParticleCollection &constituents, JetCollection &jets,
+                 float ptMinCut, float ptMaxCut, size_t &nJets,
+                 bool doSubstructure) {
+  // select only the two jets with the highest pT per event
+  float jetPT0 = 0;
+  float jetPT1 = 1;
+  Jet jet0;
+  Jet jet1;
+  // momentum of current jet
   TLorentzVector p4;
   for (unsigned j = 0; j < pseudojets.size(); j++) {
     // get the jet for analysis
     PseudoJet this_jet = pseudojets[j];
-
+    // get corresponding particle
     p4.SetPtEtaPhiM(this_jet.pt(), this_jet.eta(), this_jet.phi(),
                     std::max(this_jet.m(), 0.0));
-    Jet jet(p4);
+
+    // map of all jet vertex z position to their pTs of this jet
+    std::unordered_map<float, float> jetVertices;
+    // go through all subjets and find the vertex with most weight (highest pT)
+    // size_t counter = 0;
+    for (auto &subjet : this_jet.constituents()) {
+      // the z vertex of the constituent
+      float vertexZ = constituents.at(subjet.user_index())->vertex().Z();
+      //  std::cout << "vertex: " << vertexZ << std::endl;
+      // find the corresponding pT
+      auto search = jetVertices.find(vertexZ);
+      if (search != jetVertices.end()) {
+        search->second += subjet.pt();
+        //  counter++;
+      } else {
+        jetVertices[vertexZ] = subjet.pt();
+      }
+    }
+    // find the vertex with highest pt and assign it to this jet
+    auto finalVertexZ = std::max_element(
+        jetVertices.begin(), jetVertices.end(),
+        [](const pair<float, float> &a, const pair<float, float> &b) {
+          return a.second < b.second;
+        });
+    /*  std::cout << "doubled: " << counter
+                << " number of vertices per jet: " << jetVertices.size()
+                << " final vertex: " << finalVertexZ->first
+                << ", pT: " << finalVertexZ->second << std::endl;*/
+    // current het
+    Jet jet(p4, finalVertexZ->first);
 
     if (doSubstructure) {
       // N-subjettiness
@@ -599,111 +824,158 @@ void convertJets(Sequence seq, vector<PseudoJet> pseudojets, const float &r,
       // store jet in collection
     }
 
-    jets.Add(new Jet(jet));
+    // jet with highest pT
+    if (jet.pt() > jetPT0) {
+      jetPT0 = jet.pt();
+      jet0 = jet;
+    } else if (jet.pt() > jetPT1) {
+      jetPT1 = jet.pt();
+      jet1 = jet;
+    }
+  }
+  //  std::cout << "Final two jets of event: " << std::endl;
+  //  std::cout << " pT: " << jetPT0 << "," << jetPT1 << std::endl;
+  if (selectPT(jetPT0, ptMinCut, ptMaxCut)) {
+    nJets++;
+    jets.Add(new Jet(jet0));
+  }
+  if (selectPT(jetPT1, ptMinCut, ptMaxCut)) {
+    nJets++;
+    jets.Add(new Jet(jet1));
   }
 }
 
+bool selectPT(float pT, float pTMin, float pTMax) {
+  return ((pT >= pTMin) && (pT <= pTMax));
+}
+
 //------------------------------------------------------------------------------------------------------
-void matchJets(JetCollection &genjets, JetCollection &recojets, float dr) {
-  for (unsigned i = 0; i < genjets.size(); i++) {
-    float dr0 = 999.;
-    Jet *gj = genjets.at(i);
-    // will be best matching recojet
-    Jet *rj0;
-    for (unsigned j = 0; j < recojets.size(); j++) {
-      Jet *rj = recojets.at(j);
-      float dr_gr = rj->p4().DeltaR(gj->p4());
-      if (dr_gr < dr0) {
-        rj0 = rj;
-        dr0 = dr_gr;
+
+bool isClusterable(int pdgid, int status) {
+  bool pass = true;
+  // primary
+  if (status != 1) pass = false;
+  // do not use neutrinos
+  if (fabs(pdgid) == 12) pass = false;
+  if (fabs(pdgid) == 14) pass = false;
+  if (fabs(pdgid) == 16) pass = false;
+  return pass;
+}
+
+//------------------------------------------------------------------------------------------------------
+std::vector<std::vector<unsigned>> translateMatrix(
+    const TMatrixD &trackIDsMatrix, const long long int &globalLayerID,
+    std::vector<std::unordered_set<int>> &trackIDsPerLayer,
+    std::unordered_set<int> &validTrackIDs) {
+  std::vector<std::vector<unsigned>> trackIDs;
+  for (int i = 0; i < trackIDsMatrix.GetNrows(); i++) {
+    std::vector<unsigned> trackIDsPerCluster;
+    for (size_t j = 0; j < trackIDsMatrix.GetNcols(); j++) {
+      unsigned trackID = trackIDsMatrix[i][j];
+      if (trackID) {
+        trackIDsPerCluster.push_back(trackID);
+        // check if it is already marked as valid
+        auto searchValid = validTrackIDs.find(trackID);
+        if (searchValid == validTrackIDs.end()) {
+          // not marked as valid yet, check if it appears in another layer
+          size_t layerCounter = 0;
+          for (auto &layer : trackIDsPerLayer) {
+            // do not search in current layer
+            if (layerCounter != globalLayerID) {
+              auto searchLayer = layer.find(trackID);
+              if (searchLayer != layer.end()) {
+                // found on another layer - mark as valid
+                validTrackIDs.insert(trackID);
+              }
+            }
+            layerCounter++;
+          }  // go through layers
+          // insert to current layer
+          trackIDsPerLayer.at(globalLayerID).insert(trackID);
+        }
       }
-    }
-    // assign genjet ref. to best matching recojet (and vice versa)
-    if (dr0 < dr) {
-      rj0->setRef(gj);
-      gj->setRef(rj0);
-    }
-  }
+    }  // go through columns
+    trackIDs.push_back(trackIDsPerCluster);
+  }  // go through rows
+  return trackIDs;
 }
 
 //------------------------------------------------------------------------------------------------------
-void printJets(JetCollection &jets) {
-  cout << " -- Print Jet collection -- " << endl;
-  for (unsigned j = 0; j < jets.size(); j++) {
-    jets.at(j)->print();
-    if (jets.at(j)->ref()) {
-      (jets.at(j)->ref())->print();
-    }
-  }
-}
 
-//------------------------------------------------------------------------------------------------------
-void sumOverCone(JetCollection &newjets, JetCollection &recojets,
-                 RecHitCollection &recHits, float dr) {
-  for (unsigned i = 0; i < recojets.size(); i++) {
-    Jet *rj = recojets.at(i);
-    float eta;
-    float phi;
-    float pt;
-    float energy;
-    float x;
-    float y;
-    float z;
-    TLorentzVector p4;  // use SetPtEtaPhiM
-    // sums up all reHits aroud DeltaR=0.4
-    for (unsigned j = 0; j < recHits.size(); j++) {
-      RecHit *hit = recHits.at(j);
-      float dr_gh = hit->p4().DeltaR(rj->p4());
-      if (dr_gh < dr) {
-        // Add hit to new jet
-        // Calculate transverse momentum
-        x += hit->pos().X() * hit->energy();
-        y += hit->pos().Y() * hit->energy();
-        z += hit->pos().Z() * hit->energy();
-        energy += hit->energy();
-        eta += hit->pos().Eta() * hit->energy();
-        phi += hit->pos().Phi() * hit->energy();
+std::pair<size_t, size_t> nTrackAndMergedClusters(
+    const std::vector<std::vector<unsigned>> &trackIDsPerCluster,
+    const std::unordered_set<int> &validTrackIDs) {
+  // The number of clusters which have a track assigned
+  size_t nValidClusters = 0;
+  // the number of merged clusters
+  size_t nMergedClusters = 0;
+  // go through the clusters of this module and count
+  for (auto &clusterTrackIDs : trackIDsPerCluster) {
+    // the valid track IDs of this cluster
+    size_t nValidTracks = 0;
+    // go through the trackIDs of the current cluster
+    for (auto trackID : clusterTrackIDs) {
+      // check if it was assigned to be valid
+      auto search = validTrackIDs.find(trackID);
+      if (search != validTrackIDs.end()) {
+        nValidTracks++;
       }
+    }  // go through trackIDs of the cluster
+    // if there is at least one valid track in the cluster, the cluster is
+    // valid
+    if (nValidTracks) {
+      if (nValidTracks > 1) {
+        // if there is more than one track in the cluster, the cluster is
+        // merged
+        nMergedClusters++;
+      }
+      nValidClusters++;
     }
-    TVector3 vec;
-    vec.SetXYZ(x / energy, y / energy, z / energy);
-    p4.SetPtEtaPhiE(energy * vec.Unit().Perp(), eta / energy, phi / energy,
-                    energy);
-    Jet newjet(p4);
-    newjets.Add(new Jet(newjet));
-  }
+  }  // go through clusters
+  return std::make_pair(nValidClusters, nMergedClusters);
 }
+//------------------------------------------------------------------------------------------------------
 
-std::vector<std::vector<RecHit *>> hitsInJets(JetCollection &recojets,
-                                              RecHitCollection &recHits,
-                                              float dr, float zMin, float zMax,
-                                              float rMin, float rMax) {
-  // the return vector
-  std::vector<std::vector<RecHit *>> hitsInJets;
-  std::vector<RecHit *> trackerHits;
-  for (unsigned i = 0; i < recojets.size(); i++) {
-    Jet *rj = recojets.at(i);
-    std::vector<RecHit *> hits;
-    // sums up all reHits aroud DeltaR
-    for (unsigned j = 0; j < recHits.size(); j++) {
-      RecHit *hit = recHits.at(j);
-      float dr_gh = sqrt(hit->eta() * hit->eta() + hit->phi() * hit->phi());
-      //     float dr_gh = hit->p4().DeltaR(rj->p4());
-
-      float r = sqrt(hit->x() * hit->x() + hit->y() * hit->y());
-      float z = hit->z();
-      bool rCut = (r > rMin) && (r < rMax);
-      bool zCut = (z > zMin) && (z < zMax);
-      bool insideCone = dr_gh < dr;
-      if (rCut && zCut) {
-        trackerHits.push_back(hit);
-      }  // cuts
-      if (rCut && zCut && insideCone) {
-        hits.push_back(hit);
-      }  // cuts
-    }    // go through hits
-    trackerHits.clear();
-    hitsInJets.push_back(hits);
-  }  // go through jets
-  return hitsInJets;
+std::pair<size_t, size_t> nTracksPerCluster(
+    const std::vector<unsigned> &clusterTrackIDs,
+    const std::unordered_map<int, GenParticle> &simParticles, float pTCut,
+    const std::unordered_set<int> &validTrackIDs_layer,
+    size_t &nValidTracksLayer) {
+  // the valid track IDs of this cluster
+  size_t nTracks = 0;
+  size_t nValidTracks = 0;
+  // go through the trackIDs of the current cluster
+  if (!clusterTrackIDs.size()) std::cout << "no size" << std::endl;
+  for (auto trackID : clusterTrackIDs) {
+    // check if it was assigned to be valid
+    nTracks++;
+    auto search = simParticles.find(trackID);
+    if (search != simParticles.end()) {
+      if (search->second.pt() >= pTCut) {
+        nValidTracks++;
+      }
+    } else {
+      throw std::runtime_error(
+          "nTracksPerCluster::TrackID not found in simparticles!");
+    }
+    // check if it was found on more than one layer
+    auto searchLayer = validTrackIDs_layer.find(trackID);
+    if (searchLayer != validTrackIDs_layer.end()) {
+      nValidTracksLayer++;
+    }
+  }  // go through trackIDs of the cluster
+  // number of tracks can not be zero, set to one if no track of this cluster
+  // passes the cut
+  if (nValidTracksLayer == 0) {
+    nValidTracksLayer = 1;
+  }
+  if (nValidTracks == 0) {
+    nValidTracks = 1;
+  }
+  if (nTracks == 0) {
+    throw std::runtime_error(
+        "nTracksPerCluster::Number of tracks participating to this cluster "
+        "zero!");
+  }
+  return std::make_pair(nTracks, nValidTracks);
 }
