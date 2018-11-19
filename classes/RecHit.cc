@@ -10,20 +10,23 @@ RecHit::RecHit(RecHit& r) {
   _bits = r._bits;
 };
 
-RecHit::RecHit(TLorentzVector p4, TLorentzVector pos, int layer, int bits) {
+RecHit::RecHit(TLorentzVector p4, TLorentzVector pos, int layer, int bits,
+               float time) {
   _mom = p4;
   _pos = pos;
   _layer = layer;
   _bits = bits;
+  _time = time;
 }
 
 RecHit::RecHit(TLorentzVector p4, TLorentzVector pos, int layer,
-               float thickness, int bits) {
+               float thickness, int bits, float time) {
   _mom = p4;
   _pos = pos;
   _layer = layer;
   _thickness = thickness;
   _bits = bits;
+  _time = time;
 }
 
 void RecHit::setP4(TLorentzVector p4) { _mom = p4; }
@@ -32,7 +35,7 @@ void RecHit::setThickness(float thickness) { _thickness = thickness; }
 
 void RecHit::setPuOffset(float puOffset) { _puOffset = puOffset; }
 
-bool RecHit::isAboveThreshold(RecHitCalibration rc, float ecut) {
+bool RecHit::isAboveThreshold(RecHitCalibration rc, float ecut) const {
   float sigmaNoise = 1.;
   int thickIndex = -1;
   if (_layer <= 40) {  // EE + FH
@@ -62,18 +65,19 @@ bool RecHit::isAbovePuNoise() {
   return _mom.E() > 0;
 }
 
-float RecHit::eta() { return _mom.Eta(); }
-float RecHit::phi() { return _mom.Phi(); }
-float RecHit::pt() { return _mom.Pt(); }
-float RecHit::energy() { return _mom.E(); }
-float RecHit::x() { return _pos.X(); }
-float RecHit::y() { return _pos.Y(); }
-float RecHit::z() { return _pos.Z(); }
-float RecHit::px() { return _mom.Px(); }
-float RecHit::py() { return _mom.Py(); }
-float RecHit::pz() { return _mom.Pz(); }
-float RecHit::thickness() { return _thickness; }
-int RecHit::layer() { return _layer; }
-TLorentzVector RecHit::p4() { return _mom; }
-TLorentzVector RecHit::pos() { return _pos; }
-int RecHit::bits() { return _bits; }
+float RecHit::eta() const { return _mom.Eta(); }
+float RecHit::phi() const { return _mom.Phi(); }
+float RecHit::pt() const { return _mom.Pt(); }
+float RecHit::energy() const { return _mom.E(); }
+float RecHit::x() const { return _pos.X(); }
+float RecHit::y() const { return _pos.Y(); }
+float RecHit::z() const { return _pos.Z(); }
+float RecHit::px() const { return _mom.Px(); }
+float RecHit::py() const { return _mom.Py(); }
+float RecHit::pz() const { return _mom.Pz(); }
+float RecHit::thickness() const { return _thickness; }
+int RecHit::layer() const { return _layer; }
+TLorentzVector RecHit::p4() const { return _mom; }
+TLorentzVector RecHit::pos() const { return _pos; }
+int RecHit::bits() const { return _bits; }
+float RecHit::time() const { return _time; }

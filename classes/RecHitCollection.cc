@@ -16,8 +16,8 @@ RecHitCollection::~RecHitCollection() {
 
 RecHit* RecHitCollection::AddRecHit(const TLorentzVector p4,
                                     const TLorentzVector pos, int layer,
-                                    int bits) {
-  RecHit* r = new RecHit(p4, pos, layer, bits);
+                                    int bits, float time) {
+  RecHit* r = new RecHit(p4, pos, layer, bits, time);
   _rechits.push_back(r);
   return r;
 }
