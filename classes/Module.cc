@@ -2,13 +2,13 @@
 #include <iostream>
 #include <stdexcept>
 
-Module::Module(long long int moduleID, const TVector3& position,
-               int nChannelsOn, int nChannels,
+Module::Module(unsigned long long moduleID, const TVector3& position,
+               unsigned nChannelsOn, unsigned nChannels,
                const std::vector<float>& clusterPosX,
                const std::vector<float>& clusterPosY,
                const std::vector<float>& clusterPosZ,
                const std::vector<std::vector<unsigned>>& trackIDsPerCluster,
-               const std::vector<short int>& nCellsPerCluster)
+               const std::vector<unsigned short>& nCellsPerCluster)
     : _moduleID(moduleID),
       _position(position),
       _nChannelsOn(nChannelsOn),

@@ -13,7 +13,7 @@ class GenParticle {
 
  public:
   // constructor
-  GenParticle(const TLorentzVector& p4, int pdgid, int status,
+  GenParticle(const TLorentzVector& p4, int pdgid, unsigned status,
               const TVector3& vertex, float charge);
   GenParticle(const GenParticle& g);
 

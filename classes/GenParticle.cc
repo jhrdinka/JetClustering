@@ -1,7 +1,7 @@
 #include "GenParticle.hh"
 #include <iostream>
 
-GenParticle::GenParticle(const TLorentzVector& p4, int pdgid, int status,
+GenParticle::GenParticle(const TLorentzVector& p4, int pdgid, unsigned status,
                          const TVector3& vertex, float charge) {
   _mom = p4;
   _pdgid = pdgid;

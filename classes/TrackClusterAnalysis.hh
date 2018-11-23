@@ -32,9 +32,9 @@ class TrackClusterAnalysis {
   /// eta distribution
   float _phi_jet;
   /// moduleIDs for the trees
-  long long int _moduleID;
-  long long int _moduleID_cluster;
-  long long int _moduleIDAll;
+  ULong64_t _moduleID;
+  ULong64_t _moduleID_cluster;
+  ULong64_t _moduleIDAll;
   /// number of tracks per cluster for differnt cuts
   float _nTracksPerCluster;          // no cut
   float _nTracksPerClusterPTCut;     // cut on pt
@@ -85,12 +85,13 @@ class TrackClusterAnalysis {
   void fill_cluster(float deltaR_cluster, float eta, float eta_jet, float phi,
                     float phi_jet, float nTracksPerCluster,
                     float nTracksPerClusterPTCut,
-                    float nTracksPerClusterLayerCut, long long int moduleID,
-                    short int nCellsPerCluster);
+                    float nTracksPerClusterLayerCut,
+                    unsigned long long moduleID,
+                    unsigned short nCellsPerCluster);
   void fill_module(float deltaR_module, float nClusters, float occupancy,
-                   long long int moduleID);
+                   unsigned long long moduleID);
 
-  void fill_allClusters(float eta, float phi, long long int moduleID);
+  void fill_allClusters(float eta, float phi, unsigned long long moduleID);
 
   void write();
 

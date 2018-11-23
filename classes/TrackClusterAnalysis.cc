@@ -108,8 +108,8 @@ void TrackClusterAnalysis::fill_cluster(float deltaR_cluster, float eta,
                                         float nTracksPerCluster,
                                         float nTracksPerClusterPTCut,
                                         float nTracksPerClusterLayerCut,
-                                        long long int moduleID,
-                                        short int nCellsPerCluster) {
+                                        unsigned long long moduleID,
+                                        unsigned short nCellsPerCluster) {
   // fill cluster tree
   _deltaR_cluster = deltaR_cluster;
   _eta = eta;
@@ -154,7 +154,7 @@ void TrackClusterAnalysis::fill_cluster(float deltaR_cluster, float eta,
 
   _deltaR_h->Fill(deltaR_cluster);
 
-  for (short int i = 0; i < nCellsPerCluster; i++) {
+  for (unsigned short i = 0; i < nCellsPerCluster; i++) {
     _hits_dR->Fill(deltaR_cluster);
   }
   _outputTree_cluster->Fill();
@@ -162,7 +162,7 @@ void TrackClusterAnalysis::fill_cluster(float deltaR_cluster, float eta,
 
 void TrackClusterAnalysis::fill_module(float deltaR_module, float nClusters,
                                        float occupancy,
-                                       long long int moduleID) {
+                                       unsigned long long moduleID) {
   _deltaR_module = deltaR_module;
   _nClusters = nClusters;
   _occupancy = occupancy;
@@ -174,7 +174,7 @@ void TrackClusterAnalysis::fill_module(float deltaR_module, float nClusters,
 }
 
 void TrackClusterAnalysis::fill_allClusters(float eta, float phi,
-                                            long long int moduleID) {
+                                            unsigned long long moduleID) {
   _etaAll = eta;
   _phiAll = phi;
   _moduleIDAll = moduleID;

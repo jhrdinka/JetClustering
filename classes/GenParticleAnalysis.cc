@@ -57,10 +57,19 @@ void GenParticleAnalysis::fillParticleAndJets(const GenParticle& genParticle,
       // delta R
       float dR = pJet.DeltaR(genParticle.p4());
       // delta R of vertex (check if particle is actually within the cone)
-      float dR_vertex = pJet.Vect().DeltaR(genParticle.vertex());
+      // correct z vertex
+      TVector3 vertex(genParticle.vertex().X(), genParticle.vertex().Y(),
+                      (genParticle.vertex().Z() - jets.at(i)->vertexZ()));
+
+      float dR_vertex = pJet.Vect().DeltaR(vertex);
+
       // assign to closer jet
-      if ((dR_vertex < jetCone) && (dR < deltaR)) {
-        deltaR = dR;
+      if (dR < deltaR) {
+        if ((vertex.Perp() > 20.) && (dR_vertex < jetCone)) {
+          deltaR = dR;
+        } else {
+          if (std::fabs(jets.at(i)->vertexZ() - vertex.z()) < 1.) deltaR = dR;
+        }
       }
     }
     if (deltaR < jetCone) {

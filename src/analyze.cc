@@ -54,6 +54,9 @@
 #include "SimParticle.hh"
 #include "TrackClusterAnalysis.hh"
 
+#include <chrono>
+#include <ctime>
+
 bool debug = false;
 // bool debug = true;
 
@@ -95,15 +98,22 @@ std::vector<std::vector<unsigned>> translateMatrix(
     std::vector<std::unordered_set<int>> &trackIDsPerLayer,
     std::unordered_set<int> &validTrackIDs);
 
+std::vector<std::vector<unsigned>> translateTrackIDs(
+    const std::vector<unsigned short> &nTracksPerCluster,
+    const std::vector<unsigned> &trackIDsPerCluster,
+    const long long unsigned &globalLayerID,
+    std::vector<std::unordered_set<unsigned>> &trackIDsPerLayer,
+    std::unordered_set<unsigned> &validTrackIDs);
+
 // hands back as a pair the valid
 std::pair<size_t, size_t> nTrackAndMergedClusters(
     const std::vector<std::vector<unsigned>> &trackIDsPerCluster,
-    const std::unordered_set<int> &validTrackIDs);
+    const std::unordered_set<unsigned> &validTrackIDs);
 
 std::pair<size_t, size_t> nTracksPerCluster(
     const std::vector<unsigned> &clusterTrackIDs,
-    const std::unordered_map<int, GenParticle> &simParticles, float pTCut,
-    const std::unordered_set<int> &validTrackIDs_layer,
+    const std::unordered_map<unsigned, GenParticle> &simParticles, float pTCut,
+    const std::unordered_set<unsigned> &validTrackIDs_layer,
     size_t &nValidTracksLayer);
 
 bool selectPT(float pT, float pTMin, float pTMax);
@@ -127,7 +137,7 @@ int main(int argc, char *argv[]) {
 
   // Global parameters and definitions
   std::string dirname = argv[1];
-  int nEvents = std::atoi(argv[3]);
+  unsigned nEvents = std::atoi(argv[3]);
   float ptMinCut = std::atof(argv[4]);
   float ptMaxCut = std::atof(argv[5]);
   std::cout << "Begin analysis of '" << nEvents << "' Events "
@@ -139,9 +149,11 @@ int main(int argc, char *argv[]) {
   // JetAnalysis
   JetAnalysis jetAnalysis("JetAnalysis", ptMinCut, ptMaxCut);
   // GenParticleAnalysis
-  GenParticleAnalysis genParticleAnalysis("GenPart", ptMinCut, ptMaxCut, true);
+  /// GenParticleAnalysis genParticleAnalysis("GenPart", ptMinCut, ptMaxCut,
+  /// true);
   // SimParticleAnalysis
-  GenParticleAnalysis simParticleAnalysis("SimPart", ptMinCut, ptMaxCut, true);
+  /// GenParticleAnalysis simParticleAnalysis("SimPart", ptMinCut, ptMaxCut,
+  /// true);
   // cluster analysis
   TrackClusterAnalysis analysis("all");
   TrackClusterAnalysis pixelAnalysis("pixel");
@@ -168,16 +180,16 @@ int main(int argc, char *argv[]) {
   cuts.absetamin = -2.5;  // @todo maybe change to 2.5
   cuts.absetamax = 2.5;
 
-  int eventCount = 0;
+  unsigned eventCount = 0;
 
   // masks for layers
-  long long int mask = 0xf;
-  long long int layerMaskBarrel = 0x1f0;
-  long long int posNegMask = 0x10;
-  long long int layerMaskEC = 0x3e0;
+  const unsigned long long mask = 0xf;
+  const unsigned long long layerMaskBarrel = 0x1f0;
+  const unsigned long long posNegMask = 0x10;
+  const unsigned long long layerMaskEC = 0x3e0;
   // number of layers
-  const int nLayers_barrel = 12;
-  const int nLayers_ec = 20;
+  const unsigned nLayers_barrel = 12;
+  const unsigned nLayers_ec = 20;
 
   //-----------------------------------------------------------------------
   //------------------------Read in gen paricles---------------------------
@@ -199,6 +211,8 @@ int main(int argc, char *argv[]) {
           std::cerr << "Could not open file: " << fname << std::endl;
         }
 
+        auto start = std::chrono::system_clock::now();
+
         //-----------------------------------------------------------------------
         //-----------------------Read in gen particles-------------------------
         //-----------------------------------------------------------------------
@@ -210,7 +224,8 @@ int main(int argc, char *argv[]) {
         TTreeReaderValue<std::vector<float>> genpart_energy(reader,
                                                             "gen_energy");
         TTreeReaderValue<std::vector<int>> genpart_charge(reader, "gen_charge");
-        TTreeReaderValue<std::vector<int>> genpart_status(reader, "gen_status");
+        TTreeReaderValue<std::vector<unsigned>> genpart_status(reader,
+                                                               "gen_status");
         TTreeReaderValue<std::vector<int>> genpart_pdgid(reader, "gen_pdgid");
         TTreeReaderValue<std::vector<float>> genpart_vertexX(reader,
                                                              "gen_vertexX");
@@ -272,10 +287,10 @@ int main(int argc, char *argv[]) {
           //--------------------------genpart-analysis-----------------------------
           //-----------------------------------------------------------------------
           // go through each gen particle
-          for (size_t ipart = 0; ipart < genparts.size(); ipart++) {
-            genParticleAnalysis.fillParticleAndJets(*(genparts.at(ipart)),
-                                                    genjets, R);
-          }
+          /// for (size_t ipart = 0; ipart < genparts.size(); ipart++) {
+          ///   genParticleAnalysis.fillParticleAndJets(*(genparts.at(ipart)),
+          ///                                           genjets, R);
+          ///  }
 
         }  //*end go through events of genparticle tree of current file
 
@@ -283,15 +298,18 @@ int main(int argc, char *argv[]) {
         //-----------------------Read-in-sim-particle-map------------------------
         //-----------------------------------------------------------------------
         std::cout << "before sim" << std::endl;
+
+        auto start_simRead = std::chrono::system_clock::now();
         // map indicating if the particle created a track above threshold
-        std::vector<std::unordered_map<int, GenParticle>> simParticlesPerEvent;
+        std::vector<std::unordered_map<unsigned, GenParticle>>
+            simParticlesPerEvent;
         std::vector<float> *sim_eta = new std::vector<float>;
         std::vector<float> *sim_phi = new std::vector<float>;
         std::vector<float> *sim_pt = new std::vector<float>;
         std::vector<float> *sim_energy = new std::vector<float>;
         std::vector<int> *sim_charge = new std::vector<int>;
-        std::vector<int> *sim_bits = new std::vector<int>;
-        std::vector<int> *sim_status = new std::vector<int>;
+        std::vector<unsigned> *sim_bits = new std::vector<unsigned>;
+        std::vector<unsigned> *sim_status = new std::vector<unsigned>;
         std::vector<int> *sim_pdgid = new std::vector<int>;
         std::vector<float> *sim_vertexX = new std::vector<float>;
         std::vector<float> *sim_vertexY = new std::vector<float>;
@@ -310,11 +328,11 @@ int main(int argc, char *argv[]) {
         simInfo->SetBranchAddress("sim_vertexZ", &sim_vertexZ);
         simInfo->SetBranchAddress("sim_bits", &sim_bits);
 
-        for (int iEvent = 0;
+        for (unsigned iEvent = 0;
              (iEvent < simInfo->GetEntries()) && (iEvent < nEvents); iEvent++) {
           simInfo->GetEntry(iEvent);
           auto currentJets = jetsPerEvent.at(iEvent);
-          std::unordered_map<int, GenParticle> simParticleMap;
+          std::unordered_map<unsigned, GenParticle> simParticleMap;
           for (size_t i_simPart = 0; i_simPart < sim_bits->size();
                i_simPart++) {
             //	if ((*sim_pt)[i_simPart]>0.){
@@ -331,10 +349,11 @@ int main(int argc, char *argv[]) {
             GenParticle simPart(simpart_p4, (*sim_pdgid)[i_simPart],
                                 (*sim_status)[i_simPart], vertex,
                                 (*sim_charge)[i_simPart]);
-            simParticleMap.insert(
-                std::pair<int, GenParticle>(sim_bits->at(i_simPart), simPart));
+            simParticleMap.insert(std::pair<unsigned, GenParticle>(
+                sim_bits->at(i_simPart), simPart));
 
-            simParticleAnalysis.fillParticleAndJets(simPart, currentJets, R);
+            ///     simParticleAnalysis.fillParticleAndJets(simPart,
+            ///     currentJets, R);
             //	}
           }
           std::cout << "#simparticles for this event: " << simParticleMap.size()
@@ -342,55 +361,62 @@ int main(int argc, char *argv[]) {
           simParticlesPerEvent.push_back(simParticleMap);
         }
 
+        auto end_simRead = std::chrono::system_clock::now();
+        std::chrono::duration<double> time_simRead =
+            end_simRead - start_simRead;
+        std::cout << "elapsed time read simParticles: " << time_simRead.count()
+                  << "s\n";
         //-----------------------------------------------------------------------
         //--------------------------read-in-clusters-----------------------------
         //-----------------------------------------------------------------------
+        std::cout << "Before reading in clusters" << std::endl;
+
         // first read in cluster and module information
         TTreeReader clusterReader(treeName.c_str(), inFile);
-        TTreeReaderValue<int> eventNr(clusterReader, "event_nr");
-        TTreeReaderValue<long long int> moduleID(clusterReader, "moduleID");
-        TTreeReaderValue<int> nChannels(clusterReader, "nChannels");
-        TTreeReaderValue<int> nChannelsOn(clusterReader, "nChannelsOn");
+        TTreeReaderValue<UInt_t> eventNr(clusterReader, "event_nr");
+        TTreeReaderValue<ULong64_t> moduleID(clusterReader, "moduleID");
+        TTreeReaderValue<UInt_t> nChannels(clusterReader, "nChannels");
+        TTreeReaderValue<UInt_t> nChannelsOn(clusterReader, "nChannelsOn");
         TTreeReaderValue<float> moduleX(clusterReader, "s_x");
         TTreeReaderValue<float> moduleY(clusterReader, "s_y");
         TTreeReaderValue<float> moduleZ(clusterReader, "s_z");
         TTreeReaderValue<std::vector<float>> clusterX(clusterReader, "g_x");
         TTreeReaderValue<std::vector<float>> clusterY(clusterReader, "g_y");
         TTreeReaderValue<std::vector<float>> clusterZ(clusterReader, "g_z");
-        TTreeReaderValue<std::vector<short int>> nCells(clusterReader,
-                                                        "nCells");
+        TTreeReaderValue<std::vector<UShort_t>> nCells(clusterReader, "nCells");
+        TTreeReaderValue<std::vector<UShort_t>> numTracksPerCluster(
+            clusterReader, "nTracksPerCluster");
+        TTreeReaderValue<std::vector<UInt_t>> tracksPerCluster(
+            clusterReader, "trackIDsPerCluster");
 
-        // todo current workaround because of
-        // https://root-forum.cern.ch/t/problem-reading-in-tmatrixd-with-ttreereader-while-working-using-simple-tree/31113
-        //     TTreeReaderValue<TMatrixD>
-        //     trackIDsPerCluster(clusterReader,"trackIDsPerCluster");
-        TMatrixD *trackIDsMatrix = new TMatrixD();
-        TTree *clusterTree = (TTree *)inFile->Get(treeName.c_str());
-        clusterTree->SetBranchAddress("trackIDsPerCluster", &trackIDsMatrix);
         // collect modules per event
         std::vector<std::vector<Module>> modulesPerEvent(jetsPerEvent.size());
 
         // the global map for valid trackIDs (trackIDs which have at least
         // occured on one other layer
         //***-----LayerCut-begin
-        std::vector<std::unordered_set<int>> validTrackIDsPerEvent(
+        std::vector<std::unordered_set<unsigned>> validTrackIDsPerEvent(
             jetsPerEvent.size());
         // the map for each layer and event (0-11 barrel,12-32 nEC, 32-52 pEC)
         // of valid trackIDs (tracks that are seen in at least one other layer,
         // to substract secondaries only created within the material)
-        std::vector<std::vector<std::unordered_set<int>>>
+        std::vector<std::vector<std::unordered_set<unsigned>>>
         trackIDsPerLayerAndEvent(jetsPerEvent.size(),
-                                 std::vector<std::unordered_set<int>>(
+                                 std::vector<std::unordered_set<unsigned>>(
                                      nLayers_barrel + 2 * nLayers_ec));
         //***-----LayerCut-end
+
+        auto start_readClusters = std::chrono::system_clock::now();
+        double readLayers = 0;
         // go through all modules
         while (clusterReader.Next()) {
           if ((*eventNr) < nEvents) {
             //***-----LayerCut-begin
             // first get the global layerID of the current module to check if
             // track has occured on another layer
-            long long int systemID = ((*moduleID) & mask);
-            long long int globalLayerID = 0;
+            auto start_readLayers = std::chrono::system_clock::now();
+            unsigned long long systemID = ((*moduleID) & mask);
+            unsigned long long globalLayerID = 0;
             if ((systemID == 0) || (systemID == 1)) {
               //-------------------barrel-------------------
               // calculate global barrel layer ID
@@ -402,7 +428,7 @@ int main(int argc, char *argv[]) {
             } else {
               //-------------------endcaps-------------------
               // layer offset for endcaps
-              int layerOffset = 0;
+              unsigned layerOffset = 0;
               if (systemID == 3) {
                 // outer
                 layerOffset = 5;
@@ -437,10 +463,18 @@ int main(int argc, char *argv[]) {
             auto &currentLayers = trackIDsPerLayerAndEvent.at(*eventNr);
             auto &currentValidTrackIDSet = validTrackIDsPerEvent.at(*eventNr);
             // access the current entry of the trackIDs matrix (work-around)
-            clusterTree->GetEntry(clusterReader.GetCurrentEntry());
-            auto trackIDsPerCluster = std::move(
-                translateMatrix(*trackIDsMatrix, globalLayerID, currentLayers,
-                                currentValidTrackIDSet));
+            //  std::cout << "nTrackPerCluster1: " << tracksPerCluster->size()
+            //             << std::endl;
+            //  std::cout << "numTracksPerCluster1: " <<
+            //  numTracksPerCluster->size()
+            //             << std::endl;
+            auto trackIDsPerCluster = std::move(translateTrackIDs(
+                *numTracksPerCluster, *tracksPerCluster, globalLayerID,
+                currentLayers, currentValidTrackIDSet));
+            auto end_readLayers = std::chrono::system_clock::now();
+            std::chrono::duration<double> time_readLayers =
+                end_readLayers - start_readLayers;
+            readLayers += time_readLayers.count();
             // save module information
             TVector3 modulePosition((*moduleX), (*moduleY), (*moduleZ));
             modulesPerEvent[(*eventNr)].push_back(
@@ -450,10 +484,21 @@ int main(int argc, char *argv[]) {
 
           }  // check number of events
         }
+        auto end_readClusters = std::chrono::system_clock::now();
+
+        std::chrono::duration<double> time_readClusters =
+            end_readClusters - start_readClusters;
+        std::cout << "elapsed time read clusters: " << time_readClusters.count()
+                  << ", " << readLayers << "s neededfor layers"
+                  << "s\n";
         //-----------------------------------------------------------------------
         //--------------------------cluster-analysis-----------------------------
         //-----------------------------------------------------------------------
         // go through events
+
+        auto start_clusterAna = std::chrono::system_clock::now();
+        double ana_Layer = 0;
+        double time_module = 0;
         for (size_t iEvent = 0; iEvent < jetsPerEvent.size(); iEvent++) {
           // access jets of corresponding event
           auto &genjets = jetsPerEvent.at(iEvent);
@@ -467,9 +512,10 @@ int main(int argc, char *argv[]) {
           // smallest one
           for (auto &module : modules) {
             // the systemID
-            long long int systemID = (module.moduleID() & mask);
+            auto start_moduleAna1 = std::chrono::system_clock::now();
+            unsigned long long systemID = (module.moduleID() & mask);
             // calculate global barrel layer ID
-            long long int barrelLayerID =
+            unsigned long long barrelLayerID =
                 ((module.moduleID() & layerMaskBarrel) >> 4) + 6 * systemID;
             // calculate deltaR
             float defaultCone = R;
@@ -497,6 +543,12 @@ int main(int argc, char *argv[]) {
               }
             }  // go through jets
 
+            auto end_moduleAna1 = std::chrono::system_clock::now();
+
+            std::chrono::duration<double> time_moduleAna1 =
+                end_moduleAna1 - start_moduleAna1;
+            time_module += time_moduleAna1.count();
+
             const std::vector<float> &clusterPositionX =
                 module.clusterPositionX();
             const std::vector<float> &clusterPositionY =
@@ -504,7 +556,7 @@ int main(int argc, char *argv[]) {
             const std::vector<float> &clusterPositionZ =
                 module.clusterPositionZ();
 
-            const std::vector<short int> &nCellsPerCluster =
+            const std::vector<unsigned short> &nCellsPerCluster =
                 module.nCellsPerCluster();
 
             //------------now fill information per cluster------------
@@ -523,12 +575,20 @@ int main(int argc, char *argv[]) {
               float phi_jet = 0.;
               // number of tracks in this cluster
               size_t nTracksLayer = 0;
+              auto start_clusterAnaLayer = std::chrono::system_clock::now();
               auto nTracks = nTracksPerCluster(
                   trackIDsPerCluster.at(j), simParticlesPerEvent.at(iEvent),
                   0.015, validTrackIDsPerEvent.at(iEvent), nTracksLayer);
               nTracksPerEvent += nTracks.first;
               nValidTracksPerEvent += nTracks.second;
               nValidTracksPerEvent_layer += nTracksLayer;
+
+              auto end_clusterAnaLayer = std::chrono::system_clock::now();
+
+              std::chrono::duration<double> time_clusterAna =
+                  end_clusterAnaLayer - start_clusterAnaLayer;
+
+              ana_Layer += time_clusterAna.count();
               // go through jets
               for (size_t i = 0; i < genjets.size(); i++) {
                 // first access jet
@@ -601,6 +661,7 @@ int main(int argc, char *argv[]) {
 
             }  // go through clusters of this module
 
+            auto start_moduleAna = std::chrono::system_clock::now();
             // fill module information
             if (deltaR_module < defaultCone) {
               analysis.fill_module(deltaR_module, module.nClusters(),
@@ -633,6 +694,12 @@ int main(int argc, char *argv[]) {
                 }
               }
             }
+            auto end_moduleAna = std::chrono::system_clock::now();
+
+            std::chrono::duration<double> time_moduleAna =
+                end_moduleAna - start_moduleAna;
+            time_module += time_moduleAna.count();
+
           }  // go through  modules
           std::cout << "nTracksPerEvent: " << nTracksPerEvent
                     << ", nValidTracksPerEvent: " << nValidTracksPerEvent
@@ -640,6 +707,19 @@ int main(int argc, char *argv[]) {
                     << std::endl;
 
         }  // go through events
+
+        auto end_clusterAna = std::chrono::system_clock::now();
+        std::chrono::duration<double> time_clusterAna =
+            end_clusterAna - start_clusterAna;
+        std::cout << "elapsed time clusterAna: " << time_clusterAna.count()
+                  << " nTracksPerCluster: " << ana_Layer
+                  << " moduleANA: " << time_module << "s\n";
+
+        auto end = std::chrono::system_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end - start;
+        std::time_t end_time = std::chrono::system_clock::to_time_t(end);
+        std::cout << "finished computation at " << std::ctime(&end_time)
+                  << "elapsed time: " << elapsed_seconds.count() << "s\n";
       }
     }
   }
@@ -652,8 +732,8 @@ int main(int argc, char *argv[]) {
   std::cout << "eventCount: " << eventCount << std::endl;
   std::cout << "number of jets: " << nJets << std::endl;
   jetAnalysis.normalize(nJets);
-  genParticleAnalysis.normalize(nJets);
-  simParticleAnalysis.normalize(nJets);
+  /// genParticleAnalysis.normalize(nJets);
+  /// simParticleAnalysis.normalize(nJets);
   analysis.normalize(nJets);
   // @todo can this vary? the number jets per region?
   pixelAnalysis.normalize(nJets);
@@ -663,8 +743,8 @@ int main(int argc, char *argv[]) {
 
   analysis.write();
   jetAnalysis.write();
-  genParticleAnalysis.write();
-  simParticleAnalysis.write();
+  /// genParticleAnalysis.write();
+  /// simParticleAnalysis.write();
 
   float nClusters_layer[12];
   float nlayers[12] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
@@ -861,10 +941,62 @@ bool isClusterable(int pdgid, int status) {
   if (fabs(pdgid) == 16) pass = false;
   return pass;
 }
+//------------------------------------------------------------------------------------------------------
+std::vector<std::vector<unsigned>> translateTrackIDs(
+    const std::vector<unsigned short> &nTracksPerCluster,
+    const std::vector<unsigned> &tracksPerCluster,
+    const long long unsigned &globalLayerID,
+    std::vector<std::unordered_set<unsigned>> &trackIDsPerLayer,
+    std::unordered_set<unsigned> &validTrackIDs) {
+  // std::cout << "translateTrackIDs" << std::endl;
+  // std::cout << "nTracksPerCluster: " << nTracksPerCluster.size() <<
+  // std::endl;
+  // std::cout << "trackIDsPerCluster: " << tracksPerCluster.size() <<
+  // std::endl;
+  std::vector<std::vector<unsigned>> trackIDs;
+  unsigned trackIDIndex = 0;
+  // go through clusters
+  for (size_t i = 0; i < nTracksPerCluster.size(); i++) {
+    std::vector<unsigned> trackIDsPerCluster;
+    // go through trackIDs per cluster
+    for (size_t j = 0; j < nTracksPerCluster.at(i); j++) {
+      //   std::cout << "Access trackIDsPerCluster: " << trackIDIndex
+      //              << ", size: " << tracksPerCluster.size() << std::endl;
+      unsigned trackID = tracksPerCluster.at(trackIDIndex);
+      trackIDsPerCluster.push_back(trackID);
+      trackIDIndex++;
+
+      // check if it is already marked as valid
+      auto searchValid = validTrackIDs.find(trackID);
+      if (searchValid == validTrackIDs.end()) {
+        // not marked as valid yet, check if it appears in another layer
+        long long unsigned layerCounter = 0;
+        for (auto &layer : trackIDsPerLayer) {
+          // do not search in current layer
+          if (layerCounter != globalLayerID) {
+            auto searchLayer = layer.find(trackID);
+            if (searchLayer != layer.end()) {
+              // found on another layer - mark as valid
+              validTrackIDs.insert(trackID);
+            }
+          }
+          layerCounter++;
+        }  // go through layers
+        // insert to current layer
+        trackIDsPerLayer.at(globalLayerID).insert(trackID);
+      }
+    }  // go through trackIDs
+    trackIDs.push_back(trackIDsPerCluster);
+  }  // go through clusters
+
+  return trackIDs;
+}
+
+//------------------------------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------------------------------
 std::vector<std::vector<unsigned>> translateMatrix(
-    const TMatrixD &trackIDsMatrix, const long long int &globalLayerID,
+    const TMatrixD &trackIDsMatrix, const long long &globalLayerID,
     std::vector<std::unordered_set<int>> &trackIDsPerLayer,
     std::unordered_set<int> &validTrackIDs) {
   std::vector<std::vector<unsigned>> trackIDs;
@@ -938,8 +1070,8 @@ std::pair<size_t, size_t> nTrackAndMergedClusters(
 
 std::pair<size_t, size_t> nTracksPerCluster(
     const std::vector<unsigned> &clusterTrackIDs,
-    const std::unordered_map<int, GenParticle> &simParticles, float pTCut,
-    const std::unordered_set<int> &validTrackIDs_layer,
+    const std::unordered_map<unsigned, GenParticle> &simParticles, float pTCut,
+    const std::unordered_set<unsigned> &validTrackIDs_layer,
     size_t &nValidTracksLayer) {
   // the valid track IDs of this cluster
   size_t nTracks = 0;

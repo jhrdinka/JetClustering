@@ -8,12 +8,13 @@
 class Module {
  public:
   /// constructor
-  Module(long long int moduleID, const TVector3& position, int nChannelsOn,
-         int nChannels, const std::vector<float>& clusterPosX,
+  Module(unsigned long long moduleID, const TVector3& position,
+         unsigned nChannelsOn, unsigned nChannels,
+         const std::vector<float>& clusterPosX,
          const std::vector<float>& clusterPosY,
          const std::vector<float>& clusterPosZ,
          const std::vector<std::vector<unsigned>>& trackIDsPerCluster,
-         const std::vector<short int>& nCellsPerCluster);
+         const std::vector<unsigned short>& nCellsPerCluster);
   /// copy constructor
   Module(const Module& module);
 
@@ -21,16 +22,16 @@ class Module {
   ~Module() = default;
 
   /// access module ID
-  long long int moduleID() const;
+  long long unsigned moduleID() const;
 
   /// access position
   TVector3 position() const;
 
   /// access number of activated channels
-  int nChannelsOn() const;
+  unsigned nChannelsOn() const;
 
   /// access number of channels
-  int nChannels() const;
+  unsigned nChannels() const;
 
   /// get occupancy for this module
   float occupancy() const;
@@ -55,17 +56,17 @@ class Module {
   const std::vector<std::vector<unsigned>>& trackIDsPerCluster() const;
 
   /// number of cells per cluster
-  const std::vector<short int>& nCellsPerCluster() const;
+  const std::vector<unsigned short>& nCellsPerCluster() const;
 
  private:
   /// the module ID
-  long long int _moduleID;
+  unsigned long long _moduleID;
   /// the module position
   TVector3 _position;
   /// the number of channels turned on
-  int _nChannelsOn;
+  unsigned _nChannelsOn;
   /// the number of channels of this module
-  int _nChannels;
+  unsigned _nChannels;
   /// information on  cluster level
   /// the cluster position in x
   std::vector<float> _clusterPosX;
@@ -76,16 +77,16 @@ class Module {
   /// number of tracks per cluster
   std::vector<std::vector<unsigned>> _trackIDsPerCluster;
   /// number of cells per cluster
-  std::vector<short int> _nCellsPerCluster;
+  std::vector<short unsigned> _nCellsPerCluster;
 };
 
-inline long long int Module::moduleID() const { return _moduleID; }
+inline unsigned long long Module::moduleID() const { return _moduleID; }
 
 inline TVector3 Module::position() const { return _position; }
 
-inline int Module::nChannelsOn() const { return _nChannelsOn; }
+inline unsigned Module::nChannelsOn() const { return _nChannelsOn; }
 
-inline int Module::nChannels() const { return _nChannels; }
+inline unsigned Module::nChannels() const { return _nChannels; }
 
 inline float Module::occupancy() const {
   return (float(_nChannelsOn) / float(_nChannels));
@@ -110,7 +111,7 @@ inline const std::vector<std::vector<unsigned>>& Module::trackIDsPerCluster()
   return _trackIDsPerCluster;
 }
 
-inline const std::vector<short int>& Module::nCellsPerCluster() const {
+inline const std::vector<unsigned short>& Module::nCellsPerCluster() const {
   return (_nCellsPerCluster);
 }
 
