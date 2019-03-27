@@ -16,7 +16,7 @@ class GenParticleCollection {
 
   const GenParticle* AddGenParticle(const TLorentzVector& p4, int pdgid,
                                     unsigned status, const TVector3& vertex,
-                                    float charge);
+                                    float charge, float deltaR, bool isPU);
   void Add(const GenParticle* r);
 
   const GenParticle* at(const unsigned int i);

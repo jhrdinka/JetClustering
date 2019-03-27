@@ -26,7 +26,7 @@ void RecHitCollection::Add(RecHit* r) { _rechits.push_back(r); }
 
 RecHit* RecHitCollection::at(const unsigned int i) { return _rechits[i]; }
 
-unsigned int RecHitCollection::size() { return _rechits.size(); }
+unsigned int RecHitCollection::size() const { return _rechits.size(); }
 
 void RecHitCollection::Delete(const unsigned int i) {
   std::cout << i << std::endl;

@@ -22,7 +22,7 @@ Jet* JetCollection::AddJet(const TLorentzVector& p4, float vertexZ) {
 
 void JetCollection::Add(Jet* r) { _jets.push_back(r); }
 
-Jet* JetCollection::at(const unsigned int i) { return _jets[i]; }
+const Jet* JetCollection::at(const unsigned int i) const { return _jets[i]; }
 
 unsigned int JetCollection::size() const { return _jets.size(); }
 

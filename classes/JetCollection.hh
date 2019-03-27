@@ -17,7 +17,7 @@ class JetCollection {
   Jet* AddJet(const TLorentzVector& p4, float vertexZ = 0);
   void Add(Jet* r);
 
-  Jet* at(const unsigned int i);
+  const Jet* at(const unsigned int i) const;
 
   unsigned int size() const;
   void Delete(const unsigned int i);

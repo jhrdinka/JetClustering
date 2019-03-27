@@ -2,15 +2,16 @@
 #include <iostream>
 
 GenParticle::GenParticle(const TLorentzVector& p4, int pdgid, unsigned status,
-                         const TVector3& vertex, float charge) {
-  _mom = p4;
-  _pdgid = pdgid;
-  _status = status;
-  _vertex = vertex;
-
-  _mom.SetZ(p4.Z() + vertex.Z());
-
-  _charge = charge;
+                         const TVector3& vertex, float charge, float deltaR,
+                         bool isPU)
+    : _mom(p4),
+      _pdgid(pdgid),
+      _status(status),
+      _vertex(vertex),
+      _charge(charge),
+      _deltaR(deltaR),
+      _isPU(isPU) {
+  //_mom.SetZ(p4.Z() + vertex.Z());
 }
 
 GenParticle::GenParticle(const GenParticle& g) {
@@ -19,6 +20,8 @@ GenParticle::GenParticle(const GenParticle& g) {
   _mom = g._mom;
   _vertex = g._vertex;
   _charge = g._charge;
+  _deltaR = g._deltaR;
+  _isPU = g._isPU;
 }
 
 bool GenParticle::isClusterable() const {
@@ -45,3 +48,5 @@ TLorentzVector GenParticle::p4() const { return _mom; }
 int GenParticle::status() const { return _status; }
 int GenParticle::pdgid() const { return _pdgid; }
 TVector3 GenParticle::vertex() const { return _vertex; }
+float GenParticle::deltaR() const { return _deltaR; }
+bool GenParticle::isPU() const { return _isPU; }

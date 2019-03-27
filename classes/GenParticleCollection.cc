@@ -17,8 +17,9 @@ GenParticleCollection::~GenParticleCollection() {
 
 const GenParticle* GenParticleCollection::AddGenParticle(
     const TLorentzVector& p4, int pdgid, unsigned status,
-    const TVector3& vertex, float charge) {
-  const GenParticle* r = new GenParticle(p4, pdgid, status, vertex, charge);
+    const TVector3& vertex, float charge, float deltaR, bool isPU) {
+  const GenParticle* r =
+      new GenParticle(p4, pdgid, status, vertex, charge, deltaR, isPU);
   _genparticles.push_back(r);
   return r;
 }
